@@ -316,37 +316,49 @@ library( ggplot2 )
   	D$recipient <- paste(sep='.', D$recipient, D$simid )
   	G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
   	
-  	### FROM HERE 
   	
-  	# rita test, 6 month average detection window 
-  	G$rita <- with( G, (timediagnosed - timeinfected) < rexp( nrow(G), 1/(rita_window_months*30)) )
-  
-  	# # filter generations & only rita+ 
-  	# G1 <- G[ G$rita & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
   	
-  	# intervention time 
-  	G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
+  	G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
   	
-  	proc_indiv <- function(pid, IT )
-  	{
-  		piapids <- D$recipient[ D$donor == pid] |> union( c( pid, D$donor[D$recipient==pid] ))	
-  		G2 <- G[ G$pid %in% piapids , ]
-  		pia <- sum( G2$timeinfected > IT )
-  		G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-  		puta <- sum( G3$timediagnosed - IT )
-  		c( pia, puta )
+  	# Process individual intervention
+  	proc_indiv <- function(pid, IT, degree) {
+  	  piapids <- D$recipient[D$donor == pid] |> 
+  	    union(c(pid, D$donor[D$recipient == pid]))
+  	  
+  	  G2 <- G[G$pid %in% piapids, ]
+  	  pia <- sum(G2$timeinfected > IT)
+  	  
+  	  G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
+  	  puta <- sum(G3$timediagnosed - IT)
+  	  
+  	  c(pia, puta, degree + 1)
   	}
-  	mapply(proc_indiv, G1$pid, G1$IT ) -> o 
-  	o <- as.data.frame( t( o ) )
-  	colnames(o) <- c('pia', 'puta' )
-  	o
-  
+  	
+  	# Process all cases
+  	results <- matrix(nrow = nrow(G1), ncol = 3)
+  	for (i in 1:nrow(G1)) {
+  	  results[i, ] <- proc_indiv(G1$pid[i], G1$IT[i], G1$degree[i])
+  	}
+  	
+  	o <- as.data.frame(results)
+  	colnames(o) <- c('pia', 'puta', 'contacts')
+  	
+  	# Need to make the pia and puta calculations consistent (either efficiency or total)
+  	sort_puta <- sort(o$puta / o$contacts)
+  	sort_pia <- sort(o$pia)
+  	
   	list(
-  		o = o 
-  		, propintervened = nrow(G1) / nrow(Gall) 
-  		, puta = c( mean( o$puta ), var(o$puta)/nrow(o) )
-  		, pia =  c( mean( o$pia ), var(o$puta)/nrow(o))
-  	     )
+  	  o = o,
+  	  propintervened = NA,
+  	  puta = c(sum(o$puta),
+  	           sum(o$puta) / sum(o$contacts), 
+  	           sort_puta[max(1, ceiling(0.1 * nrow(o)))], 
+  	           sort_puta[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	  pia = c(mean(o$pia), 
+  	          sort_pia[max(1, ceiling(0.1 * nrow(o)))], 
+  	          sort_pia[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	  total_contacts = sum(o$contacts)
+  	)
   }
   
   
