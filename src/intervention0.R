@@ -171,12 +171,33 @@ library( ggplot2 )
   	# Filter out cases where total_contacts is 0 to avoid division by zero
   	odf1 <- odf1[odf1$total_contacts > 0, ]
   	
+  	if (nrow(odf1) == 0) {
+  	  return(list(
+  	    o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0), 
+  	                   nc = numeric(0), total_contacts = numeric(0)),
+  	    propintervened = 0,
+  	    puta = c(0, 0, 0, 0),
+  	    pia = c(0, 0, 0),
+  	    total_contacts = 0
+  	  ))
+  	}
+  	
+  	sort_puta <- sort(odf1$puta / odf1$total_contacts)
+  	sort_pia <- sort(odf1$pia)
+  	
+  	# output IQ ranges and pia/puta as per contacted individuals in addition to totals
   	list(
-  		o = odf1 
-  		, propintervened = sum( odf1$nc ) / sum(Gall$generation>0 & Gall$generation<lastgen)# TODO remove 1st and last gen from denominator 
-  		, puta = c(mean( odf1$puta / odf1$nc ), var( odf1$puta / odf1$nc  ) / nrow(odf1) )
-  		, pia =  c( mean( odf1$pia / odf1$nc ), var( odf1$pia / odf1$nc ) / nrow(odf1 ))
-  	     )
+  	  o = odf1,
+  	  propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
+  	  puta = c(sum(odf1$puta),
+  	           sum(odf1$puta) / sum(odf1$total_contacts), 
+  	           sort_puta[max(1, ceiling(0.1 * nrow(odf1)))], 
+  	           sort_puta[min(nrow(odf1), floor(0.9 * nrow(odf1)))]),
+  	  pia = c(mean(odf1$pia), 
+  	          sort_pia[max(1, ceiling(0.1 * nrow(odf1)))], 
+  	          sort_pia[min(nrow(odf1), floor(0.9 * nrow(odf1)))]),
+  	  total_contacts = sum(odf1$total_contacts)
+  	)
   }
   
   invisible( '
