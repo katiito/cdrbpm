@@ -206,40 +206,71 @@ library( ggplot2 )
   	trace one generation + donor 
   ')
   random_intervention <- function(
-  				ritdist = function(n) rexp(n,rate=1/90) 
+  				# ritdist = function(n) rexp(n,rate=1/90) 
   )
   {
   	lastgeneration <- max( Gall$generation )
   	G1 <- Gall[ Gall$generation > 0 & Gall$generation < lastgeneration, ] # gen 2+ 
+  	
+  	if (nrow(G1) == 0) {
+  	  return(list(
+  	    o = data.frame(pia = numeric(0), puta = numeric(0)),
+  	    propintervened = 0,
+  	    puta = c(0, 0, 0, 0),
+  	    pia = c(0, 0, 0),
+  	    total_contacts = 0
+  	  ))
+  	}
+  	
+  	# Randomly sample cases
+  	sample_size <- min(random_sample_size, nrow(G1))
+  	G1 <- G1 |> dplyr::slice_sample(n = sample_size)
+  	
+  	# Compute weighted degree before making PIDs unique
+  	G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+  	
   	
   	# make pids unique 
   	G1$pid <- paste(sep='.', G1$pid, G1$simid )
   	D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
   	D$recipient <- paste(sep='.', D$recipient, D$simid )
   	G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
-  	#intervention time 
-  	G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
   	
+  	# Set intervention time
+  	# G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
+  	G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
+  	
+  	# Process individual intervention
   	proc_indiv <- function(pid, IT )
   	{
-  		piapids <- D$recipient[ D$donor == pid] |> union( c( pid, D$donor[D$recipient==pid] ))	
+  		piapids <- D$recipient[ D$donor == pid] |> 
+  		        union( c( pid, D$donor[D$recipient==pid] ))	
+  		
   		G2 <- G[ G$pid %in% piapids , ]
   		pia <- sum( G2$timeinfected > IT )
+  		
   		G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
   		puta <- sum( G3$timediagnosed - IT )
-  		c( pia, puta )
+  		
+  		c( pia, puta,degree + 1 )
   	}
-  	mapply(proc_indiv, G1$pid, G1$IT ) -> o 
+  	mapply(proc_indiv, G1$pid, G1$IT, G1$degree ) -> o 
   	o <- as.data.frame( t( o ) )
-  	colnames(o) <- c('pia', 'puta' )
-  	o
+  	colnames(o) <- c('pia', 'puta', 'contacts' )
+  	
   
   	list(
-  		o = o 
-  		, propintervened = NA # output is not meaningful for this intervention 
-  		, puta = c( mean( o$puta ), var(o$puta)/nrow(o) )
-  		, pia =  c( mean( o$pia ), var(o$puta)/nrow(o))
-  	     )
+  	  o = o,
+  	  propintervened = NA,
+  	  puta = c(sum(o$puta),
+  	           sum(o$puta) / sum(o$contacts), 
+  	           sort_puta[max(1, ceiling(0.1 * nrow(G1)))], 
+  	           sort_puta[min(nrow(G1), floor(0.9 * nrow(G1)))]),
+  	  pia = c(mean(o$pia), 
+  	          sort_pia[max(1, ceiling(0.1 * nrow(G1)))], 
+  	          sort_pia[min(nrow(G1), floor(0.9 * nrow(G1)))]),
+  	  total_contacts = sum(o$contacts)
+  	)
   }
   
   invisible('
