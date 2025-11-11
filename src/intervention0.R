@@ -5,16 +5,40 @@ experiment1 intervention model
 library( glue )
 library( ggplot2 )
 
+# Main function to run intervention analysis
+run_intervention_analysis <- function(
+    d_file = 'experiment1-D.csv',
+    g_file = 'experiment1-G.csv',
+    seed = NULL,  # Default to random seed
+    cluster_size_5 = 5,
+    cluster_size_2 = 2,
+    distance_threshold = 0.005,
+    network_degree_threshold = 4,
+    random_sample_size = 30,
+    rita_window_months = 6,
+    intervention_rate = 1/90,
+    show_table = TRUE
+) {
 
+  # Handle seed setting
+  if (is.null(seed)) {
+    # Use system time for random seed
+    seed <- as.numeric(Sys.time())
+    cat("Using random seed:", seed, "\n")
+  } else if (seed == "random") {
+    # Generate random seed
+    seed <- sample(1:1000000, 1)
+    cat("Using random seed:", seed, "\n")
+  }
 
-  Dall = read.csv( 'experiment1-D.csv' , stringsAs=FALSE)
-  Gall = read.csv( 'experiment1-G.csv' , stringsAs=FALSE)
+  Dall = read.csv( d_file , stringsAs=FALSE)
+  Gall = read.csv( g_file, stringsAs=FALSE)
   
   simids = unique( Dall$simid )
   Ds = split( Dall, Dall$simid )[simids]
   Gs = split( Gall, Gall$simid )[ simids]
   
-  proc_cluster <- function( D, G, thdist = 0.005, thsize = 5, thgrowth=NA
+  proc_cluster <- function( D, G, thdist = distance_threshold, thsize = cluster_size_5, thgrowth=NA
    			  , ritdist = function() rexp(1,rate=1/90) )
   {
   
@@ -72,7 +96,7 @@ library( ggplot2 )
   	)
   }
   
-  distsize_intervention <- function(thdist = 0.005, thsize = 5, thgrowth=NA
+  distsize_intervention <- function(thdist = distance_threshold, thsize = cluster_size_5, thgrowth=NA
    			  , ritdist = function() rexp(1,rate=1/90) )
   {
   	o = lapply( 1:length( Ds ), function(i) proc_cluster( Ds[[i]], Gs[[i]]
@@ -104,6 +128,7 @@ library( ggplot2 )
   {
   	lastgeneration <- max( Gall$generation )
   	G1 <- Gall[ Gall$generation > 0 & Gall$generation < lastgeneration, ] # gen 2+ 
+  	
   	# make pids unique 
   	G1$pid <- paste(sep='.', G1$pid, G1$simid )
   	D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
@@ -151,7 +176,7 @@ library( ggplot2 )
   	G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
   	
   	# rita test, 6 month average detection window 
-  	G$rita <- with( G, (timediagnosed - timeinfected) < rexp( nrow(G), 1/(6*30)) )
+  	G$rita <- with( G, (timediagnosed - timeinfected) < rexp( nrow(G), 1/(rita_window_months*30)) )
   
   	# filter generations & only rita+ 
   	G1 <- G[ G$rita & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
@@ -182,7 +207,7 @@ library( ggplot2 )
   }
   
   
-  network_intervention <- function( thdegree = 30.
+  network_intervention <- function( network_degree_threshold = 30.
   	, ritdist = function(n) rexp(n,rate=1/90) 
   )
   {
@@ -200,7 +225,7 @@ library( ggplot2 )
   	G$degree  <-  with( G, Fdegree + w*Gdegree + ww*Hdegree)
   
   	# filter generations & only degree above threshold  
-  	G1 <- G[ (G$degree>=thdegree) & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
+  	G1 <- G[ (G$degree>=network_degree_threshold) & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
   	
   	# intervention time 
   	G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
@@ -278,3 +303,27 @@ library( ggplot2 )
   odf
   odf1 <- round( odf, 2 )
   knitr::kable(odf1)
+  
+  
+  # Return results list
+  # list(
+  #   results_table = odf1,
+  #   raw_results = list(
+  #     cluster_size_5 = ods5,
+  #     cluster_size_2 = ods2,
+  #     random = orand,
+  #     rita = orita,
+  #     network = onet
+  #   ),
+  #   parameters = list(
+  #     cluster_size_5 = cluster_size_5,
+  #     cluster_size_2 = cluster_size_2,
+  #     distance_threshold = distance_threshold,
+  #     network_degree_threshold = network_degree_threshold,
+  #     random_sample_size = random_sample_size,
+  #     rita_window_months = rita_window_months,
+  #     intervention_rate = intervention_rate,
+  #     seed = seed
+  #   )
+  # )
+}
