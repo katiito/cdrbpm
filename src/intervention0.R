@@ -5,58 +5,77 @@ experiment1 intervention model
 library( glue )
 library( ggplot2 )
 
-# Main function to run intervention analysis
-run_intervention_analysis <- function(
-    d_file = 'experiment1-D.csv',
-    g_file = 'experiment1-G.csv',
-    seed = NULL,  # Default to random seed
-    cluster_size_5 = 5,
-    cluster_size_2 = 2,
-    distance_threshold = 0.005,
-    network_degree_threshold = 4,
-    random_sample_size = 30,
-    rita_window_months = 6,
-    intervention_rate = 1/90,
+    d_file = 'experiment1-D.csv'
+    g_file = 'experiment1-G.csv'
+    seed = 2  # Default to random seed
+    cluster_size_5 = 5
+    cluster_size_2 = 5
+    distance_threshold = 0.005
+    network_degree_threshold = 4
+    random_sample_size = 30
+    rita_window_months = 6
+    intervention_rate = 1/90
     show_table = TRUE
-) {
+
+# Main function to run intervention analysis
+# run_intervention_analysis <- function(
+#     d_file = 'experiment1-D.csv',
+#     g_file = 'experiment1-G.csv',
+#     seed = NULL,  # Default to random seed
+#     cluster_size_5 = 5,
+#     cluster_size_2 = 5,
+#     distance_threshold = 0.005,
+#     network_degree_threshold = 4,
+#     random_sample_size = 30,
+#     rita_window_months = 6,
+#     intervention_rate = 1/90,
+#     show_table = TRUE
+# ) {
 
   # Handle seed setting
   if (is.null(seed)) {
     # Use system time for random seed
     seed <- as.numeric(Sys.time())
     cat("Using random seed:", seed, "\n")
-  } else if (seed == "random") {
-    # Generate random seed
-    seed <- sample(1:1000000, 1)
-    cat("Using random seed:", seed, "\n")
+  } else {
+    cat("Using fixed seed:", seed, "\n")
   }
 
+  # Load data
+  cat("Loading data...\n")
   Dall = read.csv( d_file , stringsAs=FALSE)
   Gall = read.csv( g_file, stringsAs=FALSE)
   
+  # Split data by simulation ID
   simids = unique( Dall$simid )
   Ds = split( Dall, Dall$simid )[simids]
   Gs = split( Gall, Gall$simid )[ simids]
   
-  proc_cluster <- function( D, G, thdist = distance_threshold, thsize = cluster_size_5, thgrowth=NA
-   			  , ritdist = function() rexp(1,rate=1/90) )
+  # Process individual cluster for intervention analysis
+  proc_cluster <- function( D, G, thdist = distance_threshold, 
+                            thsize = cluster_size_5, thgrowth = NA, 
+                            ritdist = function() rexp(1,rate=intervention_rate) )
   {
-  
-  	stopifnot( is.na( thgrowth )) # not impl 
-  	G = G[ order(G$timesequenced), ]
+    # Validate input
+  	stopifnot( is.na( thgrowth )) # growth threshold not implemented
+  	
+    # Sort data by relevant time variables
+    G = G[ order(G$timesequenced), ]
   	D = D[ order(D$timetransmission),]
   
   	lastgeneration <- max( G$generation )
   
   
-  	# retain cases with a path to pid 0, links < thdist ; exclude last generation 
+  	# Retain cases with path to patient 0, within distance threshold, excluding last generation
   	D1 <- D[ D$distance <= thdist , ]
   	keeppids = "0" 
   	addpids = D1$recipient[ D1$donor %in% keeppids ]
+  	
   	while( length( addpids ) > 0 ){
   		keeppids <- union( addpids, keeppids )
   		addpids = setdiff( D1$recipient[ D1$donor %in% keeppids ], keeppids )
   	}
+  	
   	G1 <- G[ G$pid %in% keeppids , ]
   	G1 <- G1[ G1$generation != lastgeneration, ]
   	D1 <- D1[ D1$donor %in% G1$pid & D1$recipient %in% G1$pid, ]
@@ -64,6 +83,7 @@ run_intervention_analysis <- function(
   	# find intervention time, if there is one 
   	csize <- 0 
   	IT <- Inf 
+  	
   	for (i in 1:nrow(G1)){
   		csize <- csize + 1
   		if ( csize >= thsize ){
@@ -71,44 +91,86 @@ run_intervention_analysis <- function(
   			break
   		}
   	}
-  	# NOTE excluding here clustered infections detected after intervention time
-  	# because intervention would not act directly on these; they may count as infections averted etc;
+  	
+  	# Exclude clustered infections detected after intervention time
   	G1 <- G1[ G1$timesequenced < IT , ]
   	
-  	# potential infections averted; should count clustered _and_ nonclustered cases; should follow only one generation 
+  	# Calculate total cluster contact network size
+  	if (nrow(G1) > 0) {
+  	  # Get cluster members' total degrees
+  	  G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+  	  total_degree <- sum(G1$degree)
+  	  
+  	  # Estimate internal connections within cluster
+  	  # internal_transmission <- nrow(D1)
+  	  # estimated_internal_contacts <- internal_transmission *
+  	  
+  	  # Total contacts = cluster members + external contacts
+  	  # total_contacts <- max(nrow(G1), nrow(G1) + total_degree - estimated_internal_contacts)
+  	  if(subnetwork == "large"){
+  	    total_contacts <- total_degree - (nrow(G1) - 2)
+  	  }else if(subnetwork == "small"){
+  	    total_contacts <- nrow(G1) + sum(pmax(G1$degree - (nrow(G1)-1), 0))
+  	  }else{
+  	    error("Assumption about how structure of contacts in cluster needs to be defined (large or small subnetwork)")
+  	  }
+  	  
+  	} else {
+  	  total_contacts <- 0
+  	}
+  	
+  	# Calculate potential infections averted (PIA) and person-years under treatment averted (PUTA)
+  	
   	pia = 0 
-  	# potential undiagnosed time averted (cumulative across all cases); should follow only one generation 
   	puta = 0 
   	piapids <- c() 
-  	if (!is.infinite( IT ) )
+  	
+  	# calculate transmissions from and to D (this is different to original code where final union was omitted)
+  	if (length(IT) > 0 && !is.infinite( IT ) )
   	{
-  		piapids <-  D$recipient[D$donor %in% G1$pid] |> union(G1$pid) 
+  		piapids <-  D$recipient[D$donor %in% G1$pid] |> 
+  		      union(G1$pid) |> 
+  		      union(D$donor[D$recipient %in% G1$pid]) 
+  		
+  		
   		G2 <- G[ G$pid %in% piapids , ]
   		pia <- sum( G2$timeinfected  > IT )
   
   		G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT , ]
   		puta <- sum( G3$timediagnosed - IT )
   	}
-  	c(  pia = pia 
-  	  , puta = puta 
-  	  , interventiontime = IT 
-  	  , nc = nrow( G1 )
-  	)
+  	c(pia = pia, puta = puta, interventiontime = IT, nc = nrow(G1), total_contacts = total_contacts)
   }
   
+  # Distance-size intervention strategy
   distsize_intervention <- function(thdist = distance_threshold, thsize = cluster_size_5, thgrowth=NA
    			  , ritdist = function() rexp(1,rate=1/90) )
   {
-  	o = lapply( 1:length( Ds ), function(i) proc_cluster( Ds[[i]], Gs[[i]]
-  							     , thdist
-  							     , thsize
-  							     , thgrowth
-  							     , ritdist))
+    # Process all simulations
+  	# o = lapply( 1:length( Ds ), function(i) proc_cluster( Ds[[i]], Gs[[i]]
+  	# 						     , thdist
+  	# 						     , thsize
+  	# 						     , thgrowth
+  	# 						     , ritdist))
+    # Process all simulations
+    o <- lapply(1:length(Ds), function(i) {
+      tryCatch({
+        proc_cluster(Ds[[i]], Gs[[i]], thsize = thsize)
+      }, error = function(e) {
+        # Return default values if processing fails
+        c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, total_contacts = 0)
+      })
+    })
+    
   	odf = do.call( rbind, o ) |> as.data.frame()
   	odf1 <- odf[ !is.infinite( odf$interventiontime ), ] # exclude sims where no cluster found 
   
+  	
   	lastgen <- max( Gall$generation )
   
+  	# Filter out cases where total_contacts is 0 to avoid division by zero
+  	odf1 <- odf1[odf1$total_contacts > 0, ]
+  	
   	list(
   		o = odf1 
   		, propintervened = sum( odf1$nc ) / sum(Gall$generation>0 & Gall$generation<lastgen)# TODO remove 1st and last gen from denominator 
@@ -326,4 +388,4 @@ run_intervention_analysis <- function(
   #     seed = seed
   #   )
   # )
-}
+# }
