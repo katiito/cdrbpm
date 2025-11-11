@@ -7,7 +7,7 @@ library( ggplot2 )
 
     d_file = 'experiment1-D.csv'
     g_file = 'experiment1-G.csv'
-    seed = 2  # Default to random seed
+    seed = 1  # Default to random seed
     cluster_size_5 = 5
     cluster_size_2 = 5
     distance_threshold = 0.005
@@ -16,6 +16,7 @@ library( ggplot2 )
     rita_window_months = 6
     intervention_rate = 1/90
     show_table = TRUE
+    
 
 # Main function to run intervention analysis
 # run_intervention_analysis <- function(
@@ -241,7 +242,7 @@ library( ggplot2 )
   	G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
   	
   	# Process individual intervention
-  	proc_indiv <- function(pid, IT )
+  	proc_indiv <- function(pid, IT, degree )
   	{
   		piapids <- D$recipient[ D$donor == pid] |> 
   		        union( c( pid, D$donor[D$recipient==pid] ))	
@@ -259,6 +260,10 @@ library( ggplot2 )
   	colnames(o) <- c('pia', 'puta', 'contacts' )
   	
   
+  	sort_puta <- sort(o$puta / o$contacts)
+  	sort_pia <- sort(o$pia)
+  	
+  	
   	list(
   	  o = o,
   	  propintervened = NA,
@@ -279,21 +284,45 @@ library( ggplot2 )
   6 month average detection window 
   	  ')
   rita_intervention <- function(
-  				ritdist = function(n) rexp(n,rate=1/90) 
+  				# ritdist = function(n) rexp(n,rate=1/rita_window_months) 
   			       )
   {
   	lastgeneration <- max( Gall$generation )
+  	
+  	# RITA test simulation - 6 month average detection window
+  	Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rita_window_months*30)))
+  	
+  	# Filter generations & only RITA positive cases
+  	G1 <- Gall[Gall$rita & (Gall$generation > 0) & (Gall$generation < lastgeneration), ]
+  	
+  	if (nrow(G1) == 0) {
+  	  return(list(
+  	    o = data.frame(pia = numeric(0), puta = numeric(0), contacts = numeric(0)),
+  	    propintervened = 0,
+  	    puta = c(0, 0, 0, 0),
+  	    pia = c(0, 0, 0),
+  	    total_contacts = 0
+  	  ))
+  	}
+  	
+  	# Compute weighted degree for RITA-positive individuals
+  	G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+  	
+  	
   
   	# make pids unique 
+  	G1$pid <- paste(sep = '.', G1$pid, G1$simid)
   	D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
   	D$recipient <- paste(sep='.', D$recipient, D$simid )
   	G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
   	
+  	### FROM HERE 
+  	
   	# rita test, 6 month average detection window 
   	G$rita <- with( G, (timediagnosed - timeinfected) < rexp( nrow(G), 1/(rita_window_months*30)) )
   
-  	# filter generations & only rita+ 
-  	G1 <- G[ G$rita & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
+  	# # filter generations & only rita+ 
+  	# G1 <- G[ G$rita & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
   	
   	# intervention time 
   	G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
@@ -396,27 +425,36 @@ library( ggplot2 )
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
   
-  rbind(
-  with( ods5, c( propintervened, puta ))
-  , with( ods2, c( propintervened, puta ))
-  , with( orand, c( propintervened, puta ))
-  , with( orita, c( propintervened, puta ))
-  , with( onet, c( propintervened, puta ))
-  ) |> as.data.frame() -> odf 
-  colnames( odf ) <- c( "Proportion intervened", "Mean", "Variance" )
-  odf$lb <- with( odf, Mean - 1.96*sqrt(Variance) )
-  odf$ub <- with( odf, Mean + 1.96*sqrt(Variance) )
-  odf
+  # Compile results
+  odf <- rbind(
+    with(ods5, c(total_contacts, puta, pia)),
+    with(ods2, c(total_contacts, puta, pia)),
+    with(orand, c(total_contacts, puta, pia)),
+    with(orita, c(total_contacts, puta, pia)),
+    with(onet, c(total_contacts, puta, pia))
+  ) |> as.data.frame()
+  
+  colnames(odf) <- c("Contacted Total", "Total PUTA", "PUTA/contacted", "Low", "High", "PIA", "Low", "High")
+  
   rownames(odf) <- c(
-  'Size=5,D=0.005'
-  , 'Size=2,D=0.005'
-  , 'Random allocation'
-  , 'RITA'
-  , 'Network, partners>30'
+    paste0('Size=', cluster_size_5, ',D=', distance_threshold),
+    paste0('Size=', cluster_size_2, ',D=', distance_threshold),
+    'Random allocation',
+    'RITA',
+    paste0('Network, partners>', network_degree_threshold)
   )
-  odf
-  odf1 <- round( odf, 2 )
-  knitr::kable(odf1)
+  
+  odf1 <- round(odf, 2)
+  
+  # Display results
+  if (show_table) {
+    if (require(knitr, quietly = TRUE)) {
+      print(knitr::kable(odf1))
+    } else {
+      cat("knitr package not available, showing table as dataframe\n")
+      print(odf1)
+    }
+  }
   
   
   # Return results list
