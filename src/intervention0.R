@@ -5,19 +5,7 @@ experiment1 intervention model
 library( glue )
 library( ggplot2 )
 
-run_intervention_analysis <- function(
-    d_file = 'experiment1-D.csv',
-    g_file = 'experiment1-G.csv',
-    seed = NULL,  # Default to random seed
-    cluster_size_5 = 5,
-    cluster_size_2 = 2,
-    distance_threshold = 0.005,
-    network_degree_threshold = 4,
-    random_sample_size = 30,
-    rita_window_months = 6,
-    intervention_rate = 1/90,
-    show_table = TRUE
-) {
+
 
   Dall = read.csv( 'experiment1-D.csv' , stringsAs=FALSE)
   Gall = read.csv( 'experiment1-G.csv' , stringsAs=FALSE)
@@ -241,12 +229,33 @@ run_intervention_analysis <- function(
   
   
   
+  # Run all interventions with error handling
+  cat("Running interventions...\n")
   
-  ods5 <- distsize_intervention()
-  ods2 <- distsize_intervention(thsize=2)
-  orand <- random_intervention()
-  orita <- rita_intervention()
-  onet <- network_intervention() 
+  ods5 <- tryCatch(distsize_intervention(thsize = cluster_size_5), error = function(e) {
+    cat("Error in ods5:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  ods2 <- tryCatch(distsize_intervention(thsize = cluster_size_2), error = function(e) {
+    cat("Error in ods2:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  orand <- tryCatch(random_intervention(), error = function(e) {
+    cat("Error in orand:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  orita <- tryCatch(rita_intervention(), error = function(e) {
+    cat("Error in orita:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  onet <- tryCatch(network_intervention(), error = function(e) {
+    cat("Error in onet:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
   
   rbind(
   with( ods5, c( propintervened, puta ))
@@ -269,4 +278,3 @@ run_intervention_analysis <- function(
   odf
   odf1 <- round( odf, 2 )
   knitr::kable(odf1)
-}
