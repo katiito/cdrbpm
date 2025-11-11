@@ -362,49 +362,77 @@ library( ggplot2 )
   }
   
   
-  network_intervention <- function( network_degree_threshold = 30.
-  	, ritdist = function(n) rexp(n,rate=1/90) 
+  network_intervention <- function( 
+    # network_degree_threshold = 30, ritdist = function(n) rexp(n,rate=1/90) 
   )
   {
-  	w <- 7.0 / 2.0 # ratio duration F to G 
-  	ww <-  7.0*30.0 # if unit daiy oo contact rate, E partners in 7 months (F duration) 
+  	# do not use weighting and instead just use contact numbers if 
+    # w <- 7.0 / 2.0 # ratio duration F to G 
+  	# ww <-  7.0*30.0 # if unit daiy oo contact rate, E partners in 7 months (F duration) 
   
-  	lastgeneration <- max( Gall$generation )
-  
-  	# make pids unique 
-  	D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
-  	D$recipient <- paste(sep='.', D$recipient, D$simid )
-  	G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
+    lastgeneration <- max(Gall$generation)
+    
+    # Make pids unique across simulations
+    D <- Dall
+    D$donor <- paste(sep = '.', D$donor, D$simid)
+    D$recipient <- paste(sep = '.', D$recipient, D$simid)
+    G <- Gall
+    G$pid <- paste(sep = '.', G$pid, G$simid)
   	
   	# compute weighted degree ( exp partners over 7 months )
-  	G$degree  <-  with( G, Fdegree + w*Gdegree + ww*Hdegree)
+  	# G$degree  <-  with( G, Fdegree + w*Gdegree + ww*Hdegree)
+  	G$degree <- with(G, Fdegree + Gdegree + Hdegree)
   
   	# filter generations & only degree above threshold  
   	G1 <- G[ (G$degree>=network_degree_threshold) & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
   	
+  	if (nrow(G1) == 0) {
+  	  return(list(
+  	    o = data.frame(pia = numeric(0), puta = numeric(0), contacts = numeric(0)),
+  	    propintervened = 0,
+  	    puta = c(0, 0, 0, 0),
+  	    pia = c(0, 0, 0),
+  	    total_contacts = 0
+  	  ))
+  	}
+  	
+  	
   	# intervention time 
   	G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
   	
-  	proc_indiv <- function(pid, IT )
+  	# Process individual intervention
+  	
+  	proc_indiv <- function(pid, IT, degree )
   	{
-  		piapids <- D$recipient[ D$donor == pid] |> union( c( pid, D$donor[D$recipient==pid] ))	
-  		G2 <- G[ G$pid %in% piapids , ]
-  		pia <- sum( G2$timeinfected > IT )
-  		G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-  		puta <- sum( G3$timediagnosed - IT )
-  		c( pia, puta )
+  	  piapids <- D$recipient[D$donor == pid] |> 
+  	    union(c(pid, D$donor[D$recipient == pid]))
+  	  
+  	  G2 <- G[G$pid %in% piapids, ]
+  	  pia <- sum(G2$timeinfected > IT)
+  	  
+  	  G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
+  	  puta <- sum(G3$timediagnosed - IT)
+  	  
+  	  c(pia, puta, degree + 1)
   	}
-  	mapply(proc_indiv, G1$pid, G1$IT ) -> o 
+  	mapply(proc_indiv, G1$pid, G1$IT, G1$degree ) -> o 
   	o <- as.data.frame( t( o ) )
-  	colnames(o) <- c('pia', 'puta' )
-  	o
+  	colnames(o) <- c('pia', 'puta','contacts' )
+  	sort_puta <- sort(o$puta / o$contacts)
+  	sort_pia <- sort(o$pia / o$contacts)
   
   	list(
-  		o = o 
-  		, propintervened = nrow(G1) / nrow(Gall) 
-  		, puta = c( mean( o$puta ), var(o$puta)/nrow(o) )
-  		, pia =  c( mean( o$pia ), var(o$puta)/nrow(o))
-  	     )
+  	  o = o,
+  	  propintervened = NA,
+  	  puta = c(sum(o$puta),
+  	           sum(o$puta) / sum(o$contacts), 
+  	           sort_puta[max(1, ceiling(0.1 * nrow(o)))], 
+  	           sort_puta[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	  pia = c(mean(o$pia), 
+  	          sort_pia[max(1, ceiling(0.1 * nrow(o)))], 
+  	          sort_pia[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	  total_contacts = sum(o$contacts)
+  	)
   }
   
   
