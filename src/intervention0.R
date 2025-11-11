@@ -402,7 +402,9 @@ library( ggplot2 )
   	
   	
   	# intervention time 
-  	G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
+  	# G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
+  	# Set intervention time
+  	G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
   	
   	# Process individual intervention
   	
