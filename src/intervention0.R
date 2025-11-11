@@ -9,7 +9,7 @@ library( ggplot2 )
     g_file = 'experiment1-G.csv'
     seed = 1  # Default to random seed
     cluster_size_5 = 5
-    cluster_size_2 = 5
+    cluster_size_2 = 2
     distance_threshold = 0.005
     network_degree_threshold = 4
     random_sample_size = 30
@@ -41,6 +41,8 @@ library( ggplot2 )
   } else {
     cat("Using fixed seed:", seed, "\n")
   }
+    
+  set.seed(seed)
 
   # Load data
   cat("Loading data...\n")
@@ -53,10 +55,10 @@ library( ggplot2 )
   Gs = split( Gall, Gall$simid )[ simids]
   
   # Process individual cluster for intervention analysis
-  proc_cluster <- function( D, G, thdist = distance_threshold, 
-                            thsize = cluster_size_5, thgrowth = NA, 
-                            ritdist = function() rexp(1,rate=intervention_rate) )
+  proc_cluster <- function(D, G, thdist = distance_threshold, thsize = cluster_size_5, 
+                           thgrowth = NA, subnetwork = "small", ritdist = function() rexp(1, rate = intervention_rate)) 
   {
+    
     # Validate input
   	stopifnot( is.na( thgrowth )) # growth threshold not implemented
   	
@@ -85,12 +87,14 @@ library( ggplot2 )
   	csize <- 0 
   	IT <- Inf 
   	
-  	for (i in 1:nrow(G1)){
-  		csize <- csize + 1
-  		if ( csize >= thsize ){
-  			IT <- G1$timesequenced[i] + ritdist() 
-  			break
-  		}
+  	if (nrow(G1) > 0) {
+  	  for (i in 1:nrow(G1)) {
+  	    csize <- csize + 1
+  	    if (csize >= thsize) {
+  	      IT <- G1$timesequenced[i] + ritdist()
+  	      break
+  	    }
+  	  }
   	}
   	
   	# Exclude clustered infections detected after intervention time
