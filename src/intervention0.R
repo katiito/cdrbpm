@@ -19,8 +19,8 @@ run_intervention_analysis <- function(
     distance_threshold = 0.005,
     network_degree_threshold = 4,
     random_sample_size = 30,
-    rita_window_months = 6,
-    intervention_rate = 1/90,
+    rita_window_months = 6, # average RITA detection window
+    intervention_rate = 1/90, # average 3 months to intervention
     show_table = TRUE) 
 {
  
@@ -50,27 +50,27 @@ run_intervention_analysis <- function(
   # Run all interventions with error handling
   cat("Running interventions...\n")
   
-  ods5 <- tryCatch(distsize_intervention(thsize = cluster_size_5, subnetwork = subnetworksize), error = function(e) {
+  ods5 <- tryCatch(distsize_intervention(Ds, Gs, thdist = distance_threshold, thsize = cluster_size_5, thgrowth = NA, subnetwork = "small", ir = intervention_rate), error = function(e) {
     cat("Error in ods5:", e$message, "\n")
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
   
-  ods2 <- tryCatch(distsize_intervention(thsize = cluster_size_2, subnetwork = subnetworksize), error = function(e) {
+  ods2 <-  tryCatch(distsize_intervention(Ds, Gs, thdist = distance_threshold, thsize = cluster_size_2, thgrowth = NA, subnetwork = "small", ir = intervention_rate), error = function(e) {
     cat("Error in ods2:", e$message, "\n")
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
   
-  orand <- tryCatch(random_intervention(), error = function(e) {
+  orand <- tryCatch(random_intervention(Dall, Gall, intervention_rate = intervention_rate), error = function(e) {
     cat("Error in orand:", e$message, "\n")
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
   
-  orita <- tryCatch(rita_intervention(), error = function(e) {
+  orita <- tryCatch(rita_intervention(Dall, Gall, rwm = rita_window_months, ir = intervention_rate), error = function(e) {
     cat("Error in orita:", e$message, "\n")
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
   
-  onet <- tryCatch(network_intervention(), error = function(e) {
+  onet <- tryCatch(network_intervention(Dall, Gall, network_degree_threshold = network_degree_threshold, intervention_rate = intervention_rate ), error = function(e) {
     cat("Error in onet:", e$message, "\n")
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
@@ -114,7 +114,7 @@ run_intervention_analysis <- function(
 
   # Process individual cluster for intervention analysis
   proc_cluster <- function(D, G, thdist = distance_threshold, thsize = cluster_size_5, 
-                           thgrowth = NA, subnetwork = "small", ritdist = function() rexp(1, rate = intervention_rate)) 
+                           thgrowth = NA, subnetwork = "small", intervention_rate) 
   {
     
     # Validate input
@@ -149,7 +149,7 @@ run_intervention_analysis <- function(
   	  for (i in 1:nrow(G1)) {
   	    csize <- csize + 1
   	    if (csize >= thsize) {
-  	      IT <- G1$timesequenced[i] + ritdist()
+  	      IT <- G1$timesequenced[i] + rexp(1, rate = intervention_rate)
   	      break
   	    }
   	  }
@@ -203,13 +203,13 @@ run_intervention_analysis <- function(
   
   ### ### ### # Distance-size intervention strategy
   
-  distsize_intervention <- function( thsize = cluster_size_5, subnetwork = "small")
+  distsize_intervention <- function(Ds, Gs, thdist = distance_threshold, thsize = cluster_size_5, thgrowth = NA, subnetwork = "small", ir = intervention_rate)
   {
 
     # Process all simulations
     o <- lapply(1:length(Ds), function(i) {
       tryCatch({
-        proc_cluster(Ds[[i]], Gs[[i]], thsize = thsize, subnetwork = subnetwork)
+        proc_cluster(Ds[[i]], Gs[[i]], thdist = distance_threshold, thsize = thsize,thgrowth = NA,subnetwork = subnetwork, intervention_rate = ir)
       }, error = function(e) {
         # Return default values if processing fails
         c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, total_contacts = 0)
@@ -259,9 +259,8 @@ run_intervention_analysis <- function(
   	sim intervention time 
   	trace one generation + donor 
   ')
-  random_intervention <- function(
-  				# ritdist = function(n) rexp(n,rate=1/90) 
-  )
+  
+  random_intervention <- function(Dall, Gall, intervention_rate)
   {
   	lastgeneration <- max( Gall$generation )
   	G1 <- Gall[ Gall$generation > 0 & Gall$generation < lastgeneration, ] # gen 2+ 
@@ -336,14 +335,12 @@ run_intervention_analysis <- function(
   Simulated RITA test
   6 month average detection window 
   	  ')
-  rita_intervention <- function(
-  				# ritdist = function(n) rexp(n,rate=1/rita_window_months) 
-  			       )
+  rita_intervention <- function(Dall, Gall, rwm = rita_window_months, ir = intervention_rate)
   {
   	lastgeneration <- max( Gall$generation )
   	
   	# RITA test simulation - 6 month average detection window
-  	Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rita_window_months*30)))
+  	Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rwm*30)))
   	
   	# Filter generations & only RITA positive cases
   	G1 <- Gall[Gall$rita & (Gall$generation > 0) & (Gall$generation < lastgeneration), ]
@@ -371,7 +368,7 @@ run_intervention_analysis <- function(
   	
   	
   	
-  	G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
+  	G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = ir)
   	
   	# Process individual intervention
   	proc_indiv <- function(pid, IT, degree) {
@@ -415,9 +412,7 @@ run_intervention_analysis <- function(
   }
   
   
-  network_intervention <- function( 
-    # network_degree_threshold = 30, ritdist = function(n) rexp(n,rate=1/90) 
-  )
+  network_intervention <- function(Dall, Gall, network_degree_threshold = 4, intervention_rate = 1/90 )
   {
   	# do not use weighting and instead just use contact numbers if 
     # w <- 7.0 / 2.0 # ratio duration F to G 
@@ -450,8 +445,7 @@ run_intervention_analysis <- function(
   	}
   	
   	
-  	# intervention time 
-  	# G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
+  	
   	# Set intervention time
   	G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
   	
