@@ -15,6 +15,7 @@ run_intervention_analysis <- function(
     seed = NULL,  # Default to random seed
     cluster_size_5 = 5,
     cluster_size_2 = 2,
+    subnetworksize = "small", # large of small network (sparse or dense connections inside cluster)
     distance_threshold = 0.005,
     network_degree_threshold = 4,
     random_sample_size = 30,
@@ -49,12 +50,12 @@ run_intervention_analysis <- function(
   # Run all interventions with error handling
   cat("Running interventions...\n")
   
-  ods5 <- tryCatch(distsize_intervention(thsize = cluster_size_5), error = function(e) {
+  ods5 <- tryCatch(distsize_intervention(thsize = cluster_size_5, subnetwork = subnetworksize), error = function(e) {
     cat("Error in ods5:", e$message, "\n")
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
   
-  ods2 <- tryCatch(distsize_intervention(thsize = cluster_size_2), error = function(e) {
+  ods2 <- tryCatch(distsize_intervention(thsize = cluster_size_2, subnetwork = subnetworksize), error = function(e) {
     cat("Error in ods2:", e$message, "\n")
     list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
   })
@@ -164,9 +165,10 @@ run_intervention_analysis <- function(
   	  total_degree <- sum(G1$degree)
   	  
   	  # Estimate internal connections within cluster
-  	  if(subnetwork == "large"){
+  	  
+  	  if(subnetwork == "large"){ # sparse connections inside cluster
   	    total_contacts <- total_degree - (nrow(G1) - 2)
-  	  }else if(subnetwork == "small"){
+  	  }else if(subnetwork == "small"){# dense connections inside cluster
   	    total_contacts <- nrow(G1) + sum(pmax(G1$degree - (nrow(G1)-1), 0))
   	  }else{
   	    error("Assumption about how structure of contacts in cluster needs to be defined (large or small subnetwork)")
@@ -201,13 +203,13 @@ run_intervention_analysis <- function(
   
   ### ### ### # Distance-size intervention strategy
   
-  distsize_intervention <- function( thsize = cluster_size_5)
+  distsize_intervention <- function( thsize = cluster_size_5, subnetwork = "small")
   {
 
     # Process all simulations
     o <- lapply(1:length(Ds), function(i) {
       tryCatch({
-        proc_cluster(Ds[[i]], Gs[[i]], thsize = thsize)
+        proc_cluster(Ds[[i]], Gs[[i]], thsize = thsize, subnetwork = subnetwork)
       }, error = function(e) {
         # Return default values if processing fails
         c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, total_contacts = 0)
