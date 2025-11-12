@@ -48,7 +48,7 @@
     * Both exclude cases with `timesequenced ≥ IT`.
 
 ---
-## 5. Scope of PIA / PUTA (behavioral change)
+## 5. Scope of PIA / PUTA (behavioural change)
 
 * **New**
     * `piapids = recipients of cluster donors ∪ cluster members ∪ donors of cluster recipients` (one outward step both directions).
@@ -57,7 +57,7 @@
     * `piapids = recipients of cluster donors ∪ cluster members` (donors-of-recipients omitted).
 
 ---
-## 6. Contact modeling
+## 6. Contact modelling
 
 * **New**
     * Computes contact counts where needed.
