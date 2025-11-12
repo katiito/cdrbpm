@@ -2,8 +2,30 @@ invisible('
 experiment1 intervention model 
 ')
 
-library( glue )
-library( ggplot2 )
+library(glue)
+library(ggplot2)
+## Path resolution using the 'here' package (required)
+if (!requireNamespace("here", quietly = TRUE)) {
+  stop("Package 'here' is required to run this script. Install it with install.packages('here').")
+}
+
+## Resolve data file paths anchored at the project root via here::here()
+## - Absolute paths are used as-is
+## - For bare filenames, prefer here('src', file) if it exists, else here(file)
+## - For relative paths with directories (e.g. 'data/x.csv'), use here(file)
+resolve_input_path <- function(file) {
+  # Absolute paths (Unix or Windows) are returned unchanged
+  if (grepl("^/|^[A-Za-z]:", file)) {
+    return(file)
+  }
+  # Prefer src/<file> for unqualified filenames commonly kept under src/
+  if (!grepl("[\\/]", file)) {
+    candidate <- here::here("src", file)
+    if (file.exists(candidate)) return(candidate)
+  }
+  # Fallback: resolve (possibly nested relative) path from project root
+  here::here(file)
+}
 
     
     
@@ -15,7 +37,7 @@ run_intervention_analysis <- function(
     seed = NULL,  # Default to random seed
     cluster_size_5 = 5,
     cluster_size_2 = 2,
-    subnetwork = "small", # large of small network (sparse or dense connections inside cluster)
+    subnetwork = "small", # large or small network (sparse or dense connections inside cluster) # nolint
     distance_threshold = 0.005,
     network_degree_threshold = 4,
     random_sample_size = 30,
@@ -24,8 +46,7 @@ run_intervention_analysis <- function(
     show_table = TRUE
 ) 
 {
-  
-  
+
   # Handle seed setting
   if (is.null(seed)) {
     # Use system time for random seed
@@ -39,8 +60,8 @@ run_intervention_analysis <- function(
   
   # Load data
   cat("Loading data...\n")
-  Dall <- read.csv( d_file , stringsAs=FALSE)
-  Gall <- read.csv( g_file, stringsAs=FALSE)
+  Dall <- read.csv(resolve_input_path(d_file), stringsAs = FALSE)
+  Gall <- read.csv(resolve_input_path(g_file), stringsAs = FALSE)
   
   # Split data by simulation ID
   simids <- unique( Dall$simid )
@@ -244,7 +265,7 @@ distsize_intervention <- function(
 {
   
   # Process all simulations
-  o <- lapply(1:length(Ds), function(i) {
+  o <- lapply(seq_along(Ds), function(i) {
     tryCatch({
       proc_cluster(
         D = Ds[[i]], G = Gs[[i]],
@@ -428,7 +449,7 @@ distsize_intervention <- function(
     
     # Process all cases
     results <- matrix(nrow = nrow(G1), ncol = 3)
-    for (i in 1:nrow(G1)) {
+  for (i in seq_len(nrow(G1))) {
       results[i, ] <- proc_indiv(G1$pid[i], G1$IT[i], G1$degree[i])
     }
     
