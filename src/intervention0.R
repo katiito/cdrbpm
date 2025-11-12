@@ -5,34 +5,26 @@ experiment1 intervention model
 library( glue )
 library( ggplot2 )
 
-    d_file = 'experiment1-D.csv'
-    g_file = 'experiment1-G.csv'
-    seed = 1  # Default to random seed
-    cluster_size_5 = 5
-    cluster_size_2 = 2
-    distance_threshold = 0.005
-    network_degree_threshold = 4
-    random_sample_size = 30
-    rita_window_months = 6
-    intervention_rate = 1/90
-    show_table = TRUE
+    
     
 
 # Main function to run intervention analysis
-# run_intervention_analysis <- function(
-#     d_file = 'experiment1-D.csv',
-#     g_file = 'experiment1-G.csv',
-#     seed = NULL,  # Default to random seed
-#     cluster_size_5 = 5,
-#     cluster_size_2 = 5,
-#     distance_threshold = 0.005,
-#     network_degree_threshold = 4,
-#     random_sample_size = 30,
-#     rita_window_months = 6,
-#     intervention_rate = 1/90,
-#     show_table = TRUE
-# ) {
-
+run_intervention_analysis <- function(
+    d_file = 'experiment1-D.csv',
+    g_file = 'experiment1-G.csv',
+    seed = NULL,  # Default to random seed
+    cluster_size_5 = 5,
+    cluster_size_2 = 2,
+    distance_threshold = 0.005,
+    network_degree_threshold = 4,
+    random_sample_size = 30,
+    rita_window_months = 6,
+    intervention_rate = 1/90,
+    show_table = TRUE) 
+{
+ 
+  
+  
   # Handle seed setting
   if (is.null(seed)) {
     # Use system time for random seed
@@ -41,7 +33,7 @@ library( ggplot2 )
   } else {
     cat("Using fixed seed:", seed, "\n")
   }
-    
+  # set my seed
   set.seed(seed)
 
   # Load data
@@ -54,6 +46,71 @@ library( ggplot2 )
   Ds = split( Dall, Dall$simid )[simids]
   Gs = split( Gall, Gall$simid )[ simids]
   
+  # Run all interventions with error handling
+  cat("Running interventions...\n")
+  
+  ods5 <- tryCatch(distsize_intervention(thsize = cluster_size_5), error = function(e) {
+    cat("Error in ods5:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  ods2 <- tryCatch(distsize_intervention(thsize = cluster_size_2), error = function(e) {
+    cat("Error in ods2:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  orand <- tryCatch(random_intervention(), error = function(e) {
+    cat("Error in orand:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  orita <- tryCatch(rita_intervention(), error = function(e) {
+    cat("Error in orita:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  onet <- tryCatch(network_intervention(), error = function(e) {
+    cat("Error in onet:", e$message, "\n")
+    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+  })
+  
+  # Compile results
+  odf <- rbind(
+    with(ods5, c(total_contacts, puta, pia)),
+    with(ods2, c(total_contacts, puta, pia)),
+    with(orand, c(total_contacts, puta, pia)),
+    with(orita, c(total_contacts, puta, pia)),
+    with(onet, c(total_contacts, puta, pia))
+  ) |> as.data.frame()
+  
+  colnames(odf) <- c("Contacted Total", "Total PUTA", "PUTA/contacted", "Low", "High", "PIA", "Low", "High")
+  
+  rownames(odf) <- c(
+    paste0('Size=', cluster_size_5, ',D=', distance_threshold),
+    paste0('Size=', cluster_size_2, ',D=', distance_threshold),
+    'Random allocation',
+    'RITA',
+    paste0('Network, partners>', network_degree_threshold)
+  )
+  
+  odf1 <- round(odf, 2)
+  
+  # Display results
+  if (show_table) {
+    if (require(knitr, quietly = TRUE)) {
+      print(knitr::kable(odf1))
+    } else {
+      cat("knitr package not available, showing table as dataframe\n")
+      print(odf1)
+    }
+  }
+}
+ 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+###### ### ### ### ###  INTERVENTION FUNCTIONS ### ### ### ### ### ### 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+
   # Process individual cluster for intervention analysis
   proc_cluster <- function(D, G, thdist = distance_threshold, thsize = cluster_size_5, 
                            thgrowth = NA, subnetwork = "small", ritdist = function() rexp(1, rate = intervention_rate)) 
@@ -107,11 +164,6 @@ library( ggplot2 )
   	  total_degree <- sum(G1$degree)
   	  
   	  # Estimate internal connections within cluster
-  	  # internal_transmission <- nrow(D1)
-  	  # estimated_internal_contacts <- internal_transmission *
-  	  
-  	  # Total contacts = cluster members + external contacts
-  	  # total_contacts <- max(nrow(G1), nrow(G1) + total_degree - estimated_internal_contacts)
   	  if(subnetwork == "large"){
   	    total_contacts <- total_degree - (nrow(G1) - 2)
   	  }else if(subnetwork == "small"){
@@ -147,16 +199,11 @@ library( ggplot2 )
   	c(pia = pia, puta = puta, interventiontime = IT, nc = nrow(G1), total_contacts = total_contacts)
   }
   
-  # Distance-size intervention strategy
-  distsize_intervention <- function(thdist = distance_threshold, thsize = cluster_size_5, thgrowth=NA
-   			  , ritdist = function() rexp(1,rate=1/90) )
+  ### ### ### # Distance-size intervention strategy
+  
+  distsize_intervention <- function( thsize = cluster_size_5)
   {
-    # Process all simulations
-  	# o = lapply( 1:length( Ds ), function(i) proc_cluster( Ds[[i]], Gs[[i]]
-  	# 						     , thdist
-  	# 						     , thsize
-  	# 						     , thgrowth
-  	# 						     , ritdist))
+
     # Process all simulations
     o <- lapply(1:length(Ds), function(i) {
       tryCatch({
@@ -187,7 +234,7 @@ library( ggplot2 )
   	  ))
   	}
   	
-  	sort_puta <- sort(odf1$puta / odf1$total_contacts)
+  	sort_puta_percontact <- sort(odf1$puta / odf1$total_contacts)
   	sort_pia <- sort(odf1$pia)
   	
   	# output IQ ranges and pia/puta as per contacted individuals in addition to totals
@@ -196,8 +243,8 @@ library( ggplot2 )
   	  propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
   	  puta = c(sum(odf1$puta),
   	           sum(odf1$puta) / sum(odf1$total_contacts), 
-  	           sort_puta[max(1, ceiling(0.1 * nrow(odf1)))], 
-  	           sort_puta[min(nrow(odf1), floor(0.9 * nrow(odf1)))]),
+  	           sort_puta_percontact[max(1, ceiling(0.1 * nrow(odf1)))], 
+  	           sort_puta_percontact[min(nrow(odf1), floor(0.9 * nrow(odf1)))]),
   	  pia = c(mean(odf1$pia), 
   	          sort_pia[max(1, ceiling(0.1 * nrow(odf1)))], 
   	          sort_pia[min(nrow(odf1), floor(0.9 * nrow(odf1)))]),
@@ -262,9 +309,9 @@ library( ggplot2 )
   	mapply(proc_indiv, G1$pid, G1$IT, G1$degree ) -> o 
   	o <- as.data.frame( t( o ) )
   	colnames(o) <- c('pia', 'puta', 'contacts' )
-  	
   
-  	sort_puta <- sort(o$puta / o$contacts)
+  	
+  	sort_puta_percontact <- sort(o$puta / o$contacts)
   	sort_pia <- sort(o$pia)
   	
   	
@@ -273,11 +320,11 @@ library( ggplot2 )
   	  propintervened = NA,
   	  puta = c(sum(o$puta),
   	           sum(o$puta) / sum(o$contacts), 
-  	           sort_puta[max(1, ceiling(0.1 * nrow(G1)))], 
-  	           sort_puta[min(nrow(G1), floor(0.9 * nrow(G1)))]),
+  	           sort_puta_percontact[max(1, ceiling(0.1 * nrow(G1)))], 
+  	           sort_puta_percontact[min(nrow(G1), floor(0.9 * nrow(G1)))]),
   	  pia = c(mean(o$pia), 
-  	          sort_pia[max(1, ceiling(0.1 * nrow(G1)))], 
-  	          sort_pia[min(nrow(G1), floor(0.9 * nrow(G1)))]),
+  	          sort_pia[max(1, ceiling(0.01 * nrow(G1)))], 
+  	          sort_pia[min(nrow(G1), floor(0.99 * nrow(G1)))]),
   	  total_contacts = sum(o$contacts)
   	)
   }
@@ -348,7 +395,7 @@ library( ggplot2 )
   	colnames(o) <- c('pia', 'puta', 'contacts')
   	
   	# Need to make the pia and puta calculations consistent (either efficiency or total)
-  	sort_puta <- sort(o$puta / o$contacts)
+  	sort_puta_percontact <- sort(o$puta / o$contacts)
   	sort_pia <- sort(o$pia)
   	
   	list(
@@ -356,11 +403,11 @@ library( ggplot2 )
   	  propintervened = NA,
   	  puta = c(sum(o$puta),
   	           sum(o$puta) / sum(o$contacts), 
-  	           sort_puta[max(1, ceiling(0.1 * nrow(o)))], 
-  	           sort_puta[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	           sort_puta_percontact[max(1, ceiling(0.1 * nrow(o)))], 
+  	           sort_puta_percontact[min(nrow(o), floor(0.9 * nrow(o)))]),
   	  pia = c(mean(o$pia), 
-  	          sort_pia[max(1, ceiling(0.1 * nrow(o)))], 
-  	          sort_pia[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	          sort_pia[max(1, ceiling(0.01 * nrow(o)))], 
+  	          sort_pia[min(nrow(o), floor(0.99 * nrow(o)))]),
   	  total_contacts = sum(o$contacts)
   	)
   }
@@ -424,7 +471,7 @@ library( ggplot2 )
   	mapply(proc_indiv, G1$pid, G1$IT, G1$degree ) -> o 
   	o <- as.data.frame( t( o ) )
   	colnames(o) <- c('pia', 'puta','contacts' )
-  	sort_puta <- sort(o$puta / o$contacts)
+  	sort_puta_percontact <- sort(o$puta / o$contacts)
   	sort_pia <- sort(o$pia / o$contacts)
   
   	list(
@@ -432,96 +479,15 @@ library( ggplot2 )
   	  propintervened = NA,
   	  puta = c(sum(o$puta),
   	           sum(o$puta) / sum(o$contacts), 
-  	           sort_puta[max(1, ceiling(0.1 * nrow(o)))], 
-  	           sort_puta[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	           sort_puta_percontact[max(1, ceiling(0.1 * nrow(o)))], 
+  	           sort_puta_percontact[min(nrow(o), floor(0.9 * nrow(o)))]),
   	  pia = c(mean(o$pia), 
-  	          sort_pia[max(1, ceiling(0.1 * nrow(o)))], 
-  	          sort_pia[min(nrow(o), floor(0.9 * nrow(o)))]),
+  	          sort_pia[max(1, ceiling(0.01 * nrow(o)))], 
+  	          sort_pia[min(nrow(o), floor(0.99 * nrow(o)))]),
   	  total_contacts = sum(o$contacts)
   	)
   }
   
   
   
-  # Run all interventions with error handling
-  cat("Running interventions...\n")
   
-  ods5 <- tryCatch(distsize_intervention(thsize = cluster_size_5), error = function(e) {
-    cat("Error in ods5:", e$message, "\n")
-    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-  })
-  
-  ods2 <- tryCatch(distsize_intervention(thsize = cluster_size_2), error = function(e) {
-    cat("Error in ods2:", e$message, "\n")
-    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-  })
-  
-  orand <- tryCatch(random_intervention(), error = function(e) {
-    cat("Error in orand:", e$message, "\n")
-    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-  })
-  
-  orita <- tryCatch(rita_intervention(), error = function(e) {
-    cat("Error in orita:", e$message, "\n")
-    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-  })
-  
-  onet <- tryCatch(network_intervention(), error = function(e) {
-    cat("Error in onet:", e$message, "\n")
-    list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-  })
-  
-  # Compile results
-  odf <- rbind(
-    with(ods5, c(total_contacts, puta, pia)),
-    with(ods2, c(total_contacts, puta, pia)),
-    with(orand, c(total_contacts, puta, pia)),
-    with(orita, c(total_contacts, puta, pia)),
-    with(onet, c(total_contacts, puta, pia))
-  ) |> as.data.frame()
-  
-  colnames(odf) <- c("Contacted Total", "Total PUTA", "PUTA/contacted", "Low", "High", "PIA", "Low", "High")
-  
-  rownames(odf) <- c(
-    paste0('Size=', cluster_size_5, ',D=', distance_threshold),
-    paste0('Size=', cluster_size_2, ',D=', distance_threshold),
-    'Random allocation',
-    'RITA',
-    paste0('Network, partners>', network_degree_threshold)
-  )
-  
-  odf1 <- round(odf, 2)
-  
-  # Display results
-  if (show_table) {
-    if (require(knitr, quietly = TRUE)) {
-      print(knitr::kable(odf1))
-    } else {
-      cat("knitr package not available, showing table as dataframe\n")
-      print(odf1)
-    }
-  }
-  
-  
-  # Return results list
-  # list(
-  #   results_table = odf1,
-  #   raw_results = list(
-  #     cluster_size_5 = ods5,
-  #     cluster_size_2 = ods2,
-  #     random = orand,
-  #     rita = orita,
-  #     network = onet
-  #   ),
-  #   parameters = list(
-  #     cluster_size_5 = cluster_size_5,
-  #     cluster_size_2 = cluster_size_2,
-  #     distance_threshold = distance_threshold,
-  #     network_degree_threshold = network_degree_threshold,
-  #     random_sample_size = random_sample_size,
-  #     rita_window_months = rita_window_months,
-  #     intervention_rate = intervention_rate,
-  #     seed = seed
-  #   )
-  # )
-# }
