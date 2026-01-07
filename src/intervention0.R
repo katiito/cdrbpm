@@ -40,7 +40,8 @@ run_intervention_analysis <- function(
   network_degree_threshold = 4,
   random_sample_size = 30,
   rita_window_months = 6, # average RITA detection window
-  lookback_window_months = 3, # growth-rate trigger window
+  lookback_window_months = 36, # growth-rate trigger window
+  growth_distance_threshold = 0.1, # separate D for growth-based trigger
   intervention_rate = 1/90, # average 3 months to intervention
   show_table = TRUE,
   show_debug = FALSE
@@ -121,7 +122,7 @@ run_intervention_analysis <- function(
     ogrowth <- tryCatch(
       growthrate_intervention(
         Ds = Ds, Gs = Gs, Gall = Gall,
-        distance_threshold = distance_threshold,
+        growth_distance_threshold = growth_distance_threshold,
         cluster_size = cluster_size_5,
         lookback_window_months = lookback_window_months,
         subnetwork = subnetwork,
@@ -159,7 +160,7 @@ run_intervention_analysis <- function(
     rownames(odf) <- c(
       paste0('Size=', cluster_size_5, ',D=', distance_threshold),
       paste0('Size=', cluster_size_2, ',D=', distance_threshold),
-      paste0('Growth, size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', distance_threshold),
+      paste0('Growth, size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
       'Random allocation',
       'RITA',
       paste0('Network, partners>', network_degree_threshold)
@@ -170,7 +171,7 @@ run_intervention_analysis <- function(
       Strategy = c(
         paste0('Size=', cluster_size_5, ',D=', distance_threshold),
         paste0('Size=', cluster_size_2, ',D=', distance_threshold),
-        paste0('Growth, size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', distance_threshold),
+        paste0('Growth, size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
         'Random allocation',
         'RITA',
         paste0('Network, partners>', network_degree_threshold)
@@ -501,11 +502,11 @@ distsize_intervention <- function(
 ### ### ### # Growth-rate cluster intervention
 
 growthrate_intervention <- function(
-    Ds, Gs, Gall,
-    distance_threshold, cluster_size,
-    lookback_window_months = 3,
-    subnetwork = "small",
-    intervention_rate
+  Ds, Gs, Gall,
+  growth_distance_threshold, cluster_size,
+  lookback_window_months = 3,
+  subnetwork = "small",
+  intervention_rate
 )
 {
   lookback_days <- lookback_window_months * 30
@@ -517,8 +518,8 @@ growthrate_intervention <- function(
 
     lastgeneration <- max(G$generation)
 
-    # Build cluster reachable from seed via edges within distance_threshold
-    D1 <- D[D$distance <= distance_threshold, ]
+  # Build cluster reachable from seed via edges within growth_distance_threshold
+  D1 <- D[D$distance <= growth_distance_threshold, ]
     keeppids <- "0"
     addpids <- D1$recipient[D1$donor %in% keeppids]
     while (length(addpids) > 0) {
@@ -534,7 +535,15 @@ growthrate_intervention <- function(
     }
 
     # Sliding window over infection times: earliest time t where count in [t-lookback_days, t] >= cluster_size
-    t <- Gtrig$timeinfected
+    t <- suppressWarnings(as.numeric(Gtrig$timeinfected))
+    if (all(!is.finite(t))) {
+      # No usable infection times; cannot trigger growth
+      return(c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, total_contacts = 0))
+    }
+    # Keep only finite infection times for windowing
+    keep <- is.finite(t)
+    t <- t[keep]
+    Gtrig <- Gtrig[keep, ]
     n <- length(t)
     j <- 1
     t_detect <- Inf
