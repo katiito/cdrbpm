@@ -30,8 +30,8 @@ resolve_input_path <- function(file) {
 
 # Main function to run intervention analysis
 run_intervention_analysis <- function(
-  d_file = 'experiment1-N1000-D.csv',
-  g_file = 'experiment1-N1000-G.csv',
+  d_file = 'experiment1-N10000-D.csv',
+  g_file = 'experiment1-N10000-G.csv',
   seed = NULL,  # Default to random seed
   cluster_size_5 = 5,
   cluster_size_2 = 2,

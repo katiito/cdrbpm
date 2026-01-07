@@ -160,9 +160,9 @@ julia --project -e 'using Pkg; Pkg.instantiate()'
 julia --project src/run_generate_experiment.jl
 ```
 
-This writes CSVs into `src/`:
-- `src/experiment1-N10-G.csv`
-- `src/experiment1-N10-D.csv`
+This writes CSVs into `src/` (now including the generation count in the name):
+- `src/experiment1-N10-gens5-G.csv`
+- `src/experiment1-N10-gens5-D.csv`
 
 - Custom run via CLI (choose how many simulations and generations):
 
@@ -172,8 +172,8 @@ julia --project src/generate_experiment.jl 100 experiment1 5
 ```
 
 Outputs will be placed in `src/` with names like:
-- `src/experiment1-N100-G.csv`
-- `src/experiment1-N100-D.csv`
+- `src/experiment1-N100-gens5-G.csv`
+- `src/experiment1-N100-gens5-D.csv`
 
 - From the Julia REPL (optional):
 
@@ -190,5 +190,6 @@ generate_experiment(100; out_prefix="experiment1", maxgenerations=5)
 ```
 
 Notes:
+- Filenames now include both the number of simulations (N) and the number of generations (gens), e.g., `experiment1-N100-gens5-*.csv`. Update any downstream scripts to point at the new names.
 - You can switch the initial contact type by passing `initialcontact = :G` (default), `:F`, or `:H` to `generate_experiment(...)`.
 - Threading is optional; if you want to enable threads for future parallel runs, you can prefix commands with `JULIA_NUM_THREADS=auto` (the current scripts themselves do not require it).

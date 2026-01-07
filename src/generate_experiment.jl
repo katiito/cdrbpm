@@ -3,9 +3,9 @@
 # Batch generator: run multiple simulations and write combined CSVs
 # Usage examples:
 #   julia src/generate_experiment.jl 100 experiment1 5
-#     -> runs 100 sims, maxgenerations=5, writes src/experiment1-N100-D.csv and -G.csv
+#     -> runs 100 sims, maxgenerations=5, writes src/experiment1-N100-gens5-D.csv and -G.csv
 #   julia src/generate_experiment.jl 50 myexp
-#     -> runs 50 sims, maxgenerations=5 (default), writes src/myexp-N50-*.csv
+#     -> runs 50 sims, maxgenerations=5 (default), writes src/myexp-N50-gens5-*.csv
 
 # Ensure the repo's project environment is active when run from VS Code or CLI
 try
@@ -45,8 +45,8 @@ function generate_experiment(n_sims::Int;
         end
     end
 
-    # Build output filenames with N tag
-    tag = string(out_prefix, "-N", n_sims)
+    # Build output filenames with N (sims) and gens (maxgenerations) tag
+    tag = string(out_prefix, "-N", n_sims, "-gens", maxgenerations)
     out_dir = @__DIR__  # write into src/ so the R script finds it via here('src', ...)
     g_path = joinpath(out_dir, string(tag, "-G.csv"))
     d_path = joinpath(out_dir, string(tag, "-D.csv"))
