@@ -11,7 +11,12 @@ import SpecialFunctions as SF
 using Plots 
 default(;lw = 4)
 
-using Debugger 
+# Optional: Debugger for development; not required to run simulations
+try
+	@eval using Debugger
+catch err
+	@info "Debugger.jl not available; continuing without it"
+end
 
 const UNDIAGNOSED = 0 
 const DIAGNOSED = 1
@@ -361,17 +366,16 @@ function simbp(p ;  maxgenerations::Int64 = 5, initialcontact=:G)
 
 		if  length( g ) > 0 
 			H = vcat( H, vcat( [x.H for x in g]... ) )
-			try
-				push!( G, g...)
-			catch
-				@bp 
-			end
+			# Append new generation infections safely
+			append!( G, g )
 		end
 	end
 	dfargs = [ (u.dpid, u.pid, u.d, u.tinf, u.contacttype) for u in G if !ismissing(u.dpid) ]
 	D = length(dfargs)>0 ? 
 		DataFrame( dfargs,  [:donor, :recipient, :distance, :timetransmission, :contacttype]  ) :  
-		DataFrame( [:donor => nothing, :recipient => nothing, :distance => nothing, :timetransmission => nothing, :contacttype => nothing] )
+		DataFrame( 
+			[:donor => String[], :recipient => String[], :distance => Float64[], :timetransmission => Float64[], :contacttype => Symbol[]]
+		)
 		
 	dfargs1 = [ (u.pid, u.tsequenced, u.tdiagnosed, u.tinf, u.generation
 	, u.degree...) for u in G ]

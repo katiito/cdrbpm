@@ -27,162 +27,252 @@ resolve_input_path <- function(file) {
   here::here(file)
 }
 
-    
-    
 
 # Main function to run intervention analysis
 run_intervention_analysis <- function(
-    d_file = 'experiment1-D.csv',
-    g_file = 'experiment1-G.csv',
-    seed = NULL,  # Default to random seed
-    cluster_size_5 = 5,
-    cluster_size_2 = 2,
-    subnetwork = "small", # large or small network (sparse or dense connections inside cluster) # nolint
-    distance_threshold = 0.005,
-    network_degree_threshold = 4,
-    random_sample_size = 30,
-    rita_window_months = 6, # average RITA detection window
-    intervention_rate = 1/90, # average 3 months to intervention
-    show_table = TRUE
-) 
-{
+  d_file = 'experiment1-N1000-D.csv',
+  g_file = 'experiment1-N1000-G.csv',
+  seed = NULL,  # Default to random seed
+  cluster_size_5 = 5,
+  cluster_size_2 = 2,
+  subnetwork = "small", # large or small network (sparse or dense connections inside cluster)
+  distance_threshold = 0.005,
+  network_degree_threshold = 4,
+  random_sample_size = 30,
+  rita_window_months = 6, # average RITA detection window
+  intervention_rate = 1/90, # average 3 months to intervention
+  show_table = TRUE,
+  show_debug = FALSE
+) {
+    # Seed
+    if (is.null(seed)) {
+      seed <- as.numeric(Sys.time())
+      cat("Using random seed:", seed, "\n")
+    } else {
+      cat("Using fixed seed:", seed, "\n")
+    }
+    set.seed(seed)
 
-  # Handle seed setting
-  if (is.null(seed)) {
-    # Use system time for random seed
-    seed <- as.numeric(Sys.time())
-    cat("Using random seed:", seed, "\n")
-  } else {
-    cat("Using fixed seed:", seed, "\n")
-  }
-  # set my seed
-  set.seed(seed)
-  
-  # Load data
-  cat("Loading data...\n")
-  Dall <- read.csv(resolve_input_path(d_file), stringsAs = FALSE)
-  Gall <- read.csv(resolve_input_path(g_file), stringsAs = FALSE)
-  
-  # Split data by simulation ID
-  simids <- unique( Dall$simid )
-  Ds <- split( Dall, Dall$simid )[simids]
-  Gs <- split( Gall, Gall$simid )[ simids]
-  
-  # Run all interventions with error handling
-  cat("Running interventions...\n")
-  
-  ods5 <- tryCatch(
-    distsize_intervention(
-      Ds = Ds, Gs = Gs, Gall = Gall,
-      distance_threshold = distance_threshold,
-      cluster_size = cluster_size_5,
-      subnetwork = subnetwork,
-      intervention_rate = intervention_rate
-    ), 
-    error = function(e) {
-      cat("Error in ods5:", e$message, "\n")
-      list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-    }
-  )
-  
-  ods2 <- tryCatch(
-    distsize_intervention(
-      Ds = Ds, Gs = Gs, Gall = Gall,
-      distance_threshold = distance_threshold,
-      cluster_size = cluster_size_2,
-      subnetwork = subnetwork,
-      intervention_rate = intervention_rate
-    ),
-    error = function(e) {
-      cat("Error in ods2:", e$message, "\n")
-      list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-    }
-  )
-  
-  orand <- tryCatch(
-    random_intervention(
-      Dall = Dall, Gall = Gall,
-      random_sample_size = random_sample_size,
-      intervention_rate = intervention_rate
-    ),
-    error = function(e) {
-      cat("Error in orand:", e$message, "\n")
-      list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-    }
-  )
-  
-  orita <- tryCatch(
-    rita_intervention(
-      Dall = Dall, Gall = Gall,
-      rita_window_months = rita_window_months,
-      intervention_rate = intervention_rate
-    ),
-    error = function(e) {
-      cat("Error in orita:", e$message, "\n")
-      list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-    }
-  )
-  
-  onet <- tryCatch(
-    network_intervention(
-      Dall = Dall, Gall = Gall,
-      network_degree_threshold = network_degree_threshold,
-      intervention_rate = intervention_rate
-    ),
-    error = function(e) {
-      cat("Error in onet:", e$message, "\n")
-      list(propintervened = 0, puta = c(0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-    }
-  )
-  
-  # Compile results
-  odf <- rbind(
-    with(ods5, c(total_contacts, puta, pia)),
-    with(ods2, c(total_contacts, puta, pia)),
-    with(orand, c(total_contacts, puta, pia)),
-    with(orita, c(total_contacts, puta, pia)),
-    with(onet,  c(total_contacts, puta, pia))
-  ) |> as.data.frame()
-  
-  colnames(odf) <- c("Contacted Total", "Total PUTA", "PUTA/contacted", "Median", "Low", "High", "PIA", "Low", "High")
-  
-  rownames(odf) <- c(
-    paste0('Size=', cluster_size_5, ',D=', distance_threshold),
-    paste0('Size=', cluster_size_2, ',D=', distance_threshold),
-    'Random allocation',
-    'RITA',
-    paste0('Network, partners>', network_degree_threshold)
-  )
-  
-  odf1 <- round(odf, 2)
-  
-  # Also show sample sizes to help judge stability
-  counts_df <- data.frame(
-    Strategy = c(
+    # Load data
+    cat("Loading data...\n")
+    Dall <- read.csv(resolve_input_path(d_file), stringsAs = FALSE)
+    Gall <- read.csv(resolve_input_path(g_file), stringsAs = FALSE)
+
+    # Split by simid
+    simids <- unique(Dall$simid)
+    Ds <- split(Dall, Dall$simid)[simids]
+    Gs <- split(Gall, Gall$simid)[simids]
+
+    # Run interventions
+    cat("Running interventions...\n")
+    ods5 <- tryCatch(
+      distsize_intervention(
+        Ds = Ds, Gs = Gs, Gall = Gall,
+        distance_threshold = distance_threshold,
+        cluster_size = cluster_size_5,
+        subnetwork = subnetwork,
+        intervention_rate = intervention_rate
+      ),
+      error = function(e) {
+        cat("Error in ods5:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+      }
+    )
+    ods2 <- tryCatch(
+      distsize_intervention(
+        Ds = Ds, Gs = Gs, Gall = Gall,
+        distance_threshold = distance_threshold,
+        cluster_size = cluster_size_2,
+        subnetwork = subnetwork,
+        intervention_rate = intervention_rate
+      ),
+      error = function(e) {
+        cat("Error in ods2:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+      }
+    )
+    orand <- tryCatch(
+      random_intervention(
+        Dall = Dall, Gall = Gall,
+        random_sample_size = random_sample_size,
+        intervention_rate = intervention_rate
+      ),
+      error = function(e) {
+        cat("Error in orand:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+      }
+    )
+    orita <- tryCatch(
+      rita_intervention(
+        Dall = Dall, Gall = Gall,
+        rita_window_months = rita_window_months,
+        intervention_rate = intervention_rate
+      ),
+      error = function(e) {
+        cat("Error in orita:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+      }
+    )
+    onet <- tryCatch(
+      network_intervention(
+        Dall = Dall, Gall = Gall,
+        network_degree_threshold = network_degree_threshold,
+        intervention_rate = intervention_rate
+      ),
+      error = function(e) {
+        cat("Error in onet:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+      }
+    )
+
+    # Compile summary table
+    odf <- rbind(
+      with(ods5, c(total_contacts, puta, pia)),
+      with(ods2, c(total_contacts, puta, pia)),
+      with(orand, c(total_contacts, puta, pia)),
+      with(orita, c(total_contacts, puta, pia)),
+      with(onet,  c(total_contacts, puta, pia))
+    ) |> as.data.frame()
+    colnames(odf) <- c("Contacted Total", "Total PUTA", "PUTA/contacted", "Median", "Low", "High", "PIA", "Low", "High")
+    rownames(odf) <- c(
       paste0('Size=', cluster_size_5, ',D=', distance_threshold),
       paste0('Size=', cluster_size_2, ',D=', distance_threshold),
       'Random allocation',
       'RITA',
       paste0('Network, partners>', network_degree_threshold)
-    ),
-    Units = c(ods5$n_units, ods2$n_units, orand$n_units, orita$n_units, onet$n_units),
-    TotalContacts = c(ods5$total_contacts, ods2$total_contacts, orand$total_contacts, orita$total_contacts, onet$total_contacts)
-  )
+    )
+    odf1 <- round(odf, 2)
 
-  # Display results
-  if (show_table) {
-    if (require(knitr, quietly = TRUE)) {
-      print(knitr::kable(odf1))
-      cat("\nSample sizes and totals (for context):\n")
-      print(knitr::kable(counts_df))
-    } else {
-      cat("knitr package not available, showing table as dataframe\n")
-      print(odf1)
-      cat("\nSample sizes and totals (for context):\n")
-      print(counts_df)
+    counts_df <- data.frame(
+      Strategy = c(
+        paste0('Size=', cluster_size_5, ',D=', distance_threshold),
+        paste0('Size=', cluster_size_2, ',D=', distance_threshold),
+        'Random allocation',
+        'RITA',
+        paste0('Network, partners>', network_degree_threshold)
+      ),
+      Units = c(ods5$n_units, ods2$n_units, orand$n_units, orita$n_units, onet$n_units),
+      TotalContacts = c(ods5$total_contacts, ods2$total_contacts, orand$total_contacts, orita$total_contacts, onet$total_contacts)
+    )
+
+    # Display results
+    if (show_table) {
+      if (require(knitr, quietly = TRUE)) {
+        print(knitr::kable(odf1))
+        cat("\nSample sizes and totals (for context):\n")
+        print(knitr::kable(counts_df))
+        if (show_debug) {
+          cat("\nDebug: Cluster-size-5 per-simulation details (odf1) -> simid, nc, total_contacts, interventiontime, pia, puta\n")
+          if (!is.null(ods5$o) && nrow(ods5$o) > 0) {
+            debug_cols <- c("simid", "nc", "total_contacts", "interventiontime", "pia", "puta")
+            odf1_5_view <- ods5$o[, debug_cols]
+            num_cols_all <- intersect(c("nc", "total_contacts", "interventiontime", "pia", "puta"), colnames(odf1_5_view))
+            odf1_5_view[num_cols_all] <- lapply(odf1_5_view[num_cols_all], function(x) suppressWarnings(as.numeric(x)))
+            num_cols <- intersect(c("interventiontime", "pia", "puta", "total_contacts"), colnames(odf1_5_view))
+            odf1_5_view[num_cols] <- lapply(odf1_5_view[num_cols], function(x) if (is.numeric(x)) round(x, 2) else x)
+            print(knitr::kable(odf1_5_view))
+            cat("\nDebug: Degree breakdown at IT for size-5 clusters (verifies why total_contacts equals its value)\n")
+            for (i in seq_len(nrow(ods5$o))) {
+              row <- ods5$o[i, ]
+              sim_key <- as.character(row$simid)
+              IT <- as.numeric(row$interventiontime)
+              if (!is.finite(IT)) next
+              D <- Ds[[sim_key]]; G <- Gs[[sim_key]]
+              if (is.null(D) || is.null(G)) next
+              lastgeneration <- max(G$generation)
+              D1 <- D[D$distance <= distance_threshold, ]
+              keeppids <- "0"
+              addpids <- D1$recipient[D1$donor %in% keeppids]
+              while (length(addpids) > 0) {
+                keeppids <- union(addpids, keeppids)
+                addpids <- setdiff(D1$recipient[D1$donor %in% keeppids], keeppids)
+              }
+              G1 <- G[G$pid %in% keeppids, ]
+              G1 <- G1[G1$generation != lastgeneration & G1$timesequenced < IT, ]
+              if (nrow(G1) == 0) next
+              G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+              n <- nrow(G1)
+              excess <- pmax(G1$degree - (n - 1), 0)
+              if (identical(subnetwork, "small")) {
+                tc <- n + sum(excess)
+              } else {
+                total_degree <- sum(G1$degree)
+                tc <- total_degree - (n - 2)
+              }
+              cat(sprintf("simid=%s n=%d nc_recorded=%s total_contacts(recalc)=%.2f recorded=%.2f degrees=%s excess=%s\n",
+                          sim_key, n, as.character(row$nc), tc, as.numeric(row$total_contacts),
+                          paste(round(G1$degree, 2), collapse=","),
+                          paste(round(excess, 2), collapse=",")))
+            }
+          } else {
+            cat("(No size-5 clusters met criteria; odf1 is empty.)\n")
+          }
+        }
+      } else {
+        cat("knitr package not available, showing table as dataframe\n")
+        print(odf1)
+        cat("\nSample sizes and totals (for context):\n")
+        print(counts_df)
+        if (show_debug) {
+          cat("\nDebug: Cluster-size-5 per-simulation details (odf1) -> simid, nc, total_contacts, interventiontime, pia, puta\n")
+          if (!is.null(ods5$o) && nrow(ods5$o) > 0) {
+            debug_cols <- c("simid", "nc", "total_contacts", "interventiontime", "pia", "puta")
+            odf1_5_view <- ods5$o[, debug_cols]
+            num_cols_all <- intersect(c("nc", "total_contacts", "interventiontime", "pia", "puta"), colnames(odf1_5_view))
+            odf1_5_view[num_cols_all] <- lapply(odf1_5_view[num_cols_all], function(x) suppressWarnings(as.numeric(x)))
+            num_cols <- intersect(c("interventiontime", "pia", "puta", "total_contacts"), colnames(odf1_5_view))
+            odf1_5_view[num_cols] <- lapply(odf1_5_view[num_cols], function(x) if (is.numeric(x)) round(x, 2) else x)
+            print(odf1_5_view)
+            cat("\nDebug: Degree breakdown at IT for size-5 clusters (verifies why total_contacts equals its value)\n")
+            for (i in seq_len(nrow(ods5$o))) {
+              row <- ods5$o[i, ]
+              sim_key <- as.character(row$simid)
+              IT <- as.numeric(row$interventiontime)
+              if (!is.finite(IT)) next
+              D <- Ds[[sim_key]]; G <- Gs[[sim_key]]
+              if (is.null(D) || is.null(G)) next
+              lastgeneration <- max(G$generation)
+              D1 <- D[D$distance <= distance_threshold, ]
+              keeppids <- "0"
+              addpids <- D1$recipient[D1$donor %in% keeppids]
+              while (length(addpids) > 0) {
+                keeppids <- union(addpids, keeppids)
+                addpids <- setdiff(D1$recipient[D1$donor %in% keeppids], keeppids)
+              }
+              G1 <- G[G$pid %in% keeppids, ]
+              G1 <- G1[G1$generation != lastgeneration & G1$timesequenced < IT, ]
+              if (nrow(G1) == 0) next
+              G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+              n <- nrow(G1)
+              excess <- pmax(G1$degree - (n - 1), 0)
+              if (identical(subnetwork, "small")) {
+                tc <- n + sum(excess)
+              } else {
+                total_degree <- sum(G1$degree)
+                tc <- total_degree - (n - 2)
+              }
+              cat(sprintf("simid=%s n=%d nc_recorded=%s total_contacts(recalc)=%.2f recorded=%.2f degrees=%s excess=%s\n",
+                          sim_key, n, as.character(row$nc), tc, as.numeric(row$total_contacts),
+                          paste(round(G1$degree, 2), collapse=","),
+                          paste(round(excess, 2), collapse=",")))
+            }
+          } else {
+            cat("(No size-5 clusters met criteria; odf1 is empty.)\n")
+          }
+        }
+      }
     }
   }
-}
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+###### ### ### ### ###  INTERVENTION FUNCTIONS ### ### ### ### ### ### 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 ###### ### ### ### ###  INTERVENTION FUNCTIONS ### ### ### ### ### ### 
@@ -236,13 +326,15 @@ proc_cluster <- function(
     # Get cluster members' total degrees
     G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
     total_degree <- sum(G1$degree)
+    n <- nrow(G1)
     
     # Estimate internal connections within cluster
-    
     if (subnetwork == "large"){ # sparse connections inside cluster
-      total_contacts <- total_degree - (nrow(G1) - 2)
+      total_contacts <- total_degree - (n - 2)
     } else if (subnetwork == "small"){ # dense connections inside cluster
-      total_contacts <- nrow(G1) + sum(pmax(G1$degree - (nrow(G1)-1), 0))
+      excess <- pmax(G1$degree - (n - 1), 0)
+      total_contacts <- n + sum(excess)
+      
     } else {
       stop("Assumption about how structure of contacts in cluster needs to be defined (large or small subnetwork)")
     }
@@ -298,27 +390,76 @@ distsize_intervention <- function(
   })
   
   odf  <- do.call( rbind, o ) |> as.data.frame()
+  # Attach simulation identifiers to each row for debugging/traceability
+  simids_vec <- names(Ds)
+  odf$simid <- if (!is.null(simids_vec)) simids_vec else seq_len(nrow(odf))
+  # Reorder columns to bring simid upfront
+  odf <- odf[, c("simid", "pia", "puta", "interventiontime", "nc", "total_contacts")]
+
+  # Sanity-correct nc and total_contacts by recomputing deterministically at the recorded IT
+  # This avoids any accidental scoping bugs and ensures recorded values match the recomputation used in debug
+  if (nrow(odf) > 0) {
+    # Coerce potential character columns
+    suppressWarnings({
+      odf$interventiontime <- as.numeric(odf$interventiontime)
+      odf$nc <- as.numeric(odf$nc)
+      odf$total_contacts <- as.numeric(odf$total_contacts)
+    })
+    for (i in seq_len(nrow(odf))) {
+      IT <- odf$interventiontime[i]
+      if (!is.finite(IT)) next
+      sim_key <- as.character(odf$simid[i])
+      D <- Ds[[sim_key]]; G <- Gs[[sim_key]]
+      if (is.null(D) || is.null(G)) next
+      lastgeneration <- max(G$generation)
+      D1 <- D[D$distance <= distance_threshold, ]
+      keeppids <- "0"
+      addpids <- D1$recipient[D1$donor %in% keeppids]
+      while (length(addpids) > 0) {
+        keeppids <- union(addpids, keeppids)
+        addpids <- setdiff(D1$recipient[D1$donor %in% keeppids], keeppids)
+      }
+      G1 <- G[G$pid %in% keeppids, ]
+      G1 <- G1[G1$generation != lastgeneration & G1$timesequenced < IT, ]
+      if (nrow(G1) == 0) next
+      G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+      n <- nrow(G1)
+      if (identical(subnetwork, "small")) {
+        excess <- pmax(G1$degree - (n - 1), 0)
+        tc <- n + sum(excess)
+      } else if (identical(subnetwork, "large")) {
+        total_degree <- sum(G1$degree)
+        tc <- total_degree - (n - 2)
+      } else {
+        tc <- NA_real_
+      }
+      odf$nc[i] <- n
+      odf$total_contacts[i] <- tc
+    }
+  }
   odf1 <- odf[ !is.infinite( odf$interventiontime ), ] # exclude sims where no cluster found 
   
   lastgen <- max( Gall$generation )
   
-  # Filter out cases where total_contacts is 0 to avoid division by zero
-  odf1 <- odf1[odf1$total_contacts > 0, ]
+  # Do NOT drop clusters with total_contacts==0; include them for counting
+  # Guard downstream per-contact computations instead of filtering them out
   
   if (nrow(odf1) == 0) {
     return(list(
       o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0), 
                      nc = numeric(0), total_contacts = numeric(0)),
       propintervened = 0,
-      puta = c(0, 0, 0, 0),
+      n_units = 0,
+      puta = c(0, 0, 0, 0, 0),
       pia = c(0, 0, 0),
       total_contacts = 0
     ))
   }
   
   e_puta_percontact <- odf1$puta / odf1$total_contacts
-  med_puta_percontact <- median(e_puta_percontact, na.rm = TRUE)
-  q_puta_percontact <- quantile(e_puta_percontact, probs = c(0.1, 0.9), na.rm = TRUE, names = FALSE)
+  e_puta_percontact_valid <- e_puta_percontact[is.finite(e_puta_percontact) & !is.na(e_puta_percontact)]
+  med_puta_percontact <- if (length(e_puta_percontact_valid) > 0) median(e_puta_percontact_valid) else NA_real_
+  q_puta_percontact <- if (length(e_puta_percontact_valid) > 0) quantile(e_puta_percontact_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
   sort_pia <- sort(odf1$pia)
   
   # output IQ ranges and pia/puta as per contacted individuals in addition to totals
@@ -327,7 +468,7 @@ distsize_intervention <- function(
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     n_units = nrow(odf1),
   puta = c(sum(odf1$puta),
-       sum(odf1$puta) / sum(odf1$total_contacts),
+       if (sum(odf1$total_contacts) > 0) sum(odf1$puta) / sum(odf1$total_contacts) else NA_real_,
        med_puta_percontact,
        q_puta_percontact[1],
        q_puta_percontact[2]),
@@ -337,7 +478,7 @@ distsize_intervention <- function(
     total_contacts = sum(odf1$total_contacts)
   )
 }
-  
+
   invisible( '
   	select random case from generation after seed and before last generation 
   	sim intervention time 
@@ -353,7 +494,8 @@ distsize_intervention <- function(
       return(list(
         o = data.frame(pia = numeric(0), puta = numeric(0)),
         propintervened = 0,
-        puta = c(0, 0, 0, 0),
+        n_units = 0,
+        puta = c(0, 0, 0, 0, 0),
         pia = c(0, 0, 0),
         total_contacts = 0
       ))
@@ -437,7 +579,8 @@ distsize_intervention <- function(
       return(list(
         o = data.frame(pia = numeric(0), puta = numeric(0), contacts = numeric(0)),
         propintervened = 0,
-        puta = c(0, 0, 0, 0),
+        n_units = 0,
+        puta = c(0, 0, 0, 0, 0),
         pia = c(0, 0, 0),
         total_contacts = 0
       ))
@@ -530,7 +673,8 @@ distsize_intervention <- function(
       return(list(
         o = data.frame(pia = numeric(0), puta = numeric(0), contacts = numeric(0)),
         propintervened = 0,
-        puta = c(0, 0, 0, 0),
+        n_units = 0,
+        puta = c(0, 0, 0, 0, 0),
         pia = c(0, 0, 0),
         total_contacts = 0
       ))

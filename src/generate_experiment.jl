@@ -30,12 +30,18 @@ function generate_experiment(n_sims::Int;
 
     for i in 1:n_sims
         o = simbp(P; maxgenerations=maxgenerations, initialcontact=initialcontact)
+        # Overwrite simid with human-readable sequential strings "1".."N"
+        G_df = copy(o.G)
+        D_df = copy(o.D)
+        G_df[!, :simid] = fill(string(i), nrow(G_df))
+        D_df[!, :simid] = fill(string(i), nrow(D_df))
+
         if i == 1
-            G_all = copy(o.G)
-            D_all = copy(o.D)
+            G_all = G_df
+            D_all = D_df
         else
-            G_all = vcat(G_all, o.G; cols=:union)
-            D_all = vcat(D_all, o.D; cols=:union)
+            G_all = vcat(G_all, G_df; cols=:union)
+            D_all = vcat(D_all, D_df; cols=:union)
         end
     end
 
