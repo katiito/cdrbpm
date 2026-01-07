@@ -7,6 +7,14 @@
 #   julia src/generate_experiment.jl 50 myexp
 #     -> runs 50 sims, maxgenerations=5 (default), writes src/myexp-N50-*.csv
 
+# Ensure the repo's project environment is active when run from VS Code or CLI
+try
+    import Pkg
+    Pkg.activate(joinpath(@__DIR__, ".."))
+catch err
+    @warn "Unable to activate project" exception=(err, catch_backtrace())
+end
+
 include("j0.jl")
 using CSV
 using DataFrames
