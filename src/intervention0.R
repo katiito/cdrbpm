@@ -234,7 +234,7 @@ proc_cluster <- function(
     total_contacts <- 0
   }
   
-  # Calculate potential infections averted (PIA) and person-years under treatment averted (PUTA)
+  # Calculate potential infections averted (PIA) and person-years untreated averted (PUTA)
   
   pia <- 0 
   puta <- 0 
