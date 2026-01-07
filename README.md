@@ -143,3 +143,52 @@
 * Summary table shape & column names changed; any downstream parsing of old columns must be updated.
 
 ---
+
+## Re-running the Julia simulations
+
+The Julia code generates the synthetic datasets consumed by the R analysis. You can regenerate them from the project root on macOS/zsh.
+
+- One-time (or after pulling changes): install the exact dependencies pinned by `Manifest.toml`.
+
+```zsh
+julia --project -e 'using Pkg; Pkg.instantiate()'
+```
+
+- Quick rerun with the defaults in `src/run_generate_experiment.jl` (10 sims, 5 generations, prefix "experiment1"):
+
+```zsh
+julia --project src/run_generate_experiment.jl
+```
+
+This writes CSVs into `src/`:
+- `src/experiment1-N10-G.csv`
+- `src/experiment1-N10-D.csv`
+
+- Custom run via CLI (choose how many simulations and generations):
+
+```zsh
+# Usage: julia --project src/generate_experiment.jl <n_sims> [out_prefix] [maxgenerations]
+julia --project src/generate_experiment.jl 100 experiment1 5
+```
+
+Outputs will be placed in `src/` with names like:
+- `src/experiment1-N100-G.csv`
+- `src/experiment1-N100-D.csv`
+
+- From the Julia REPL (optional):
+
+```zsh
+julia --project
+```
+
+Then in the REPL:
+
+```julia
+using Pkg; Pkg.instantiate()
+include("src/generate_experiment.jl")
+generate_experiment(100; out_prefix="experiment1", maxgenerations=5)
+```
+
+Notes:
+- You can switch the initial contact type by passing `initialcontact = :G` (default), `:F`, or `:H` to `generate_experiment(...)`.
+- Threading is optional; if you want to enable threads for future parallel runs, you can prefix commands with `JULIA_NUM_THREADS=auto` (the current scripts themselves do not require it).
