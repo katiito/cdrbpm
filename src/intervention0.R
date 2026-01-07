@@ -156,13 +156,30 @@ run_intervention_analysis <- function(
   
   odf1 <- round(odf, 2)
   
+  # Also show sample sizes to help judge stability
+  counts_df <- data.frame(
+    Strategy = c(
+      paste0('Size=', cluster_size_5, ',D=', distance_threshold),
+      paste0('Size=', cluster_size_2, ',D=', distance_threshold),
+      'Random allocation',
+      'RITA',
+      paste0('Network, partners>', network_degree_threshold)
+    ),
+    Units = c(ods5$n_units, ods2$n_units, orand$n_units, orita$n_units, onet$n_units),
+    TotalContacts = c(ods5$total_contacts, ods2$total_contacts, orand$total_contacts, orita$total_contacts, onet$total_contacts)
+  )
+
   # Display results
   if (show_table) {
     if (require(knitr, quietly = TRUE)) {
       print(knitr::kable(odf1))
+      cat("\nSample sizes and totals (for context):\n")
+      print(knitr::kable(counts_df))
     } else {
       cat("knitr package not available, showing table as dataframe\n")
       print(odf1)
+      cat("\nSample sizes and totals (for context):\n")
+      print(counts_df)
     }
   }
 }
@@ -308,6 +325,7 @@ distsize_intervention <- function(
   list(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
+    n_units = nrow(odf1),
   puta = c(sum(odf1$puta),
        sum(odf1$puta) / sum(odf1$total_contacts),
        med_puta_percontact,
@@ -387,6 +405,7 @@ distsize_intervention <- function(
     list(
       o = o,
       propintervened = NA,
+      n_units = nrow(o),
   puta = c(sum(o$puta),
        sum(o$puta) / sum(o$contacts),
        med_puta_percontact,
@@ -471,6 +490,7 @@ distsize_intervention <- function(
     list(
       o = o,
       propintervened = NA,
+      n_units = nrow(o),
   puta = c(sum(o$puta),
        sum(o$puta) / sum(o$contacts),
        med_puta_percontact,
@@ -547,6 +567,7 @@ distsize_intervention <- function(
     list(
       o = o,
       propintervened = NA,
+      n_units = nrow(o),
   puta = c(sum(o$puta),
        sum(o$puta) / sum(o$contacts),
        med_puta_percontact,
