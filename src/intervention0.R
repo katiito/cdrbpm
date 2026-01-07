@@ -144,7 +144,7 @@ run_intervention_analysis <- function(
     with(onet,  c(total_contacts, puta, pia))
   ) |> as.data.frame()
   
-  colnames(odf) <- c("Contacted Total", "Total PUTA", "PUTA/contacted", "Low", "High", "PIA", "Low", "High")
+  colnames(odf) <- c("Contacted Total", "Total PUTA", "PUTA/contacted", "Median", "Low", "High", "PIA", "Low", "High")
   
   rownames(odf) <- c(
     paste0('Size=', cluster_size_5, ',D=', distance_threshold),
@@ -300,6 +300,7 @@ distsize_intervention <- function(
   }
   
   sort_puta_percontact <- sort(odf1$puta / odf1$total_contacts)
+  med_puta_percontact <- median(odf1$puta / odf1$total_contacts)
   sort_pia <- sort(odf1$pia)
   
   # output IQ ranges and pia/puta as per contacted individuals in addition to totals
@@ -307,8 +308,9 @@ distsize_intervention <- function(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     puta = c(sum(odf1$puta),
-             sum(odf1$puta) / sum(odf1$total_contacts), 
-             sort_puta_percontact[max(1, ceiling(0.1 * nrow(odf1)))], 
+             sum(odf1$puta) / sum(odf1$total_contacts),
+             med_puta_percontact,
+             sort_puta_percontact[max(1, ceiling(0.1 * nrow(odf1)))],
              sort_puta_percontact[min(nrow(odf1), floor(0.9 * nrow(odf1)))]),
     pia = c(mean(odf1$pia), 
             sort_pia[max(1, ceiling(0.1 * nrow(odf1)))], 
@@ -376,6 +378,7 @@ distsize_intervention <- function(
     
     
     sort_puta_percontact <- sort(o$puta / o$contacts)
+  med_puta_percontact <- median(o$puta / o$contacts)
     sort_pia <- sort(o$pia)
     
     
@@ -383,8 +386,9 @@ distsize_intervention <- function(
       o = o,
       propintervened = NA,
       puta = c(sum(o$puta),
-               sum(o$puta) / sum(o$contacts), 
-               sort_puta_percontact[max(1, ceiling(0.1 * nrow(G1)))], 
+               sum(o$puta) / sum(o$contacts),
+               med_puta_percontact,
+               sort_puta_percontact[max(1, ceiling(0.1 * nrow(G1)))],
                sort_puta_percontact[min(nrow(G1), floor(0.9 * nrow(G1)))]),
       pia = c(mean(o$pia), 
               sort_pia[max(1, ceiling(0.01 * nrow(G1)))], 
@@ -458,14 +462,16 @@ distsize_intervention <- function(
     
     # Need to make the pia and puta calculations consistent (either efficiency or total)
     sort_puta_percontact <- sort(o$puta / o$contacts)
+  med_puta_percontact <- median(o$puta / o$contacts)
     sort_pia <- sort(o$pia)
     
     list(
       o = o,
       propintervened = NA,
       puta = c(sum(o$puta),
-               sum(o$puta) / sum(o$contacts), 
-               sort_puta_percontact[max(1, ceiling(0.1 * nrow(o)))], 
+               sum(o$puta) / sum(o$contacts),
+               med_puta_percontact,
+               sort_puta_percontact[max(1, ceiling(0.1 * nrow(o)))],
                sort_puta_percontact[min(nrow(o), floor(0.9 * nrow(o)))]),
       pia = c(mean(o$pia), 
               sort_pia[max(1, ceiling(0.01 * nrow(o)))], 
@@ -531,14 +537,16 @@ distsize_intervention <- function(
     o <- as.data.frame( t( o ) )
     colnames(o) <- c('pia', 'puta','contacts' )
     sort_puta_percontact <- sort(o$puta / o$contacts)
+  med_puta_percontact <- median(o$puta / o$contacts)
     sort_pia <- sort(o$pia / o$contacts)
     
     list(
       o = o,
       propintervened = NA,
       puta = c(sum(o$puta),
-               sum(o$puta) / sum(o$contacts), 
-               sort_puta_percontact[max(1, ceiling(0.1 * nrow(o)))], 
+               sum(o$puta) / sum(o$contacts),
+               med_puta_percontact,
+               sort_puta_percontact[max(1, ceiling(0.1 * nrow(o)))],
                sort_puta_percontact[min(nrow(o), floor(0.9 * nrow(o)))]),
       pia = c(mean(o$pia), 
               sort_pia[max(1, ceiling(0.01 * nrow(o)))], 
