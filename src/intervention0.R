@@ -44,7 +44,8 @@ run_intervention_analysis <- function(
   growth_distance_threshold = 0.1, # separate D for growth-based trigger
   intervention_rate = 1/90, # average 3 months to intervention
   show_table = TRUE,
-  show_debug = FALSE
+  show_debug = FALSE,
+  output_dir = "intervention-results"  # if non-NULL, save results to this directory
 ) {
     # Seed
     if (is.null(seed)) {
@@ -202,6 +203,89 @@ run_intervention_analysis <- function(
       Units = c(ods5$n_units, ods2$n_units, ogrowth$n_units, orand$n_units, orita$n_units, onet$n_units),
       TotalContacts = c(ods5$total_contacts, ods2$total_contacts, ogrowth$total_contacts, orand$total_contacts, orita$total_contacts, onet$total_contacts)
     )
+
+    # Save outputs to files if output_dir is specified
+    if (!is.null(output_dir)) {
+      if (!dir.exists(output_dir)) {
+        dir.create(output_dir, recursive = TRUE)
+        cat("Created output directory:", output_dir, "\n")
+      }
+      
+      # Generate timestamp for unique filenames
+      timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+      
+      # Save summary table (wide format with Strategy as rownames)
+      summary_df <- cbind(Strategy = rownames(odf), odf)
+      rownames(summary_df) <- NULL
+      summary_path <- file.path(output_dir, paste0("summary_", timestamp, ".csv"))
+      write.csv(summary_df, summary_path, row.names = FALSE)
+      
+      # Save counts table
+      counts_path <- file.path(output_dir, paste0("counts_", timestamp, ".csv"))
+      write.csv(counts_df, counts_path, row.names = FALSE)
+      
+      # Save per-simulation details for each strategy (useful for further analysis)
+      # Distance-size 5
+      if (!is.null(ods5$o) && nrow(ods5$o) > 0) {
+        ods5$o$strategy <- paste0("Size=", cluster_size_5, ",D=", distance_threshold)
+        write.csv(ods5$o, file.path(output_dir, paste0("details_distsize5_", timestamp, ".csv")), row.names = FALSE)
+      }
+      # Distance-size 2
+      if (!is.null(ods2$o) && nrow(ods2$o) > 0) {
+        ods2$o$strategy <- paste0("Size=", cluster_size_2, ",D=", distance_threshold)
+        write.csv(ods2$o, file.path(output_dir, paste0("details_distsize2_", timestamp, ".csv")), row.names = FALSE)
+      }
+      # Growth-rate
+      if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) {
+        ogrowth$o$strategy <- paste0("Growth,size=", cluster_size_5, ",W=", lookback_window_months, "mo,D=", growth_distance_threshold)
+        write.csv(ogrowth$o, file.path(output_dir, paste0("details_growth_", timestamp, ".csv")), row.names = FALSE)
+      }
+      # Random
+      if (!is.null(orand$o) && nrow(orand$o) > 0) {
+        orand$o$strategy <- "Random"
+        write.csv(orand$o, file.path(output_dir, paste0("details_random_", timestamp, ".csv")), row.names = FALSE)
+      }
+      # RITA
+      if (!is.null(orita$o) && nrow(orita$o) > 0) {
+        orita$o$strategy <- "RITA"
+        write.csv(orita$o, file.path(output_dir, paste0("details_rita_", timestamp, ".csv")), row.names = FALSE)
+      }
+      # Network
+      if (!is.null(onet$o) && nrow(onet$o) > 0) {
+        onet$o$strategy <- paste0("Network,partners>", network_degree_threshold)
+        write.csv(onet$o, file.path(output_dir, paste0("details_network_", timestamp, ".csv")), row.names = FALSE)
+      }
+      
+      # Also save a combined long-format details file for easy comparison
+      all_details <- list()
+      if (!is.null(ods5$o) && nrow(ods5$o) > 0) all_details$distsize5 <- ods5$o
+      if (!is.null(ods2$o) && nrow(ods2$o) > 0) all_details$distsize2 <- ods2$o
+      if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) all_details$growth <- ogrowth$o
+      # Random/RITA/Network have different column structures; combine cluster-based ones only
+      if (length(all_details) > 0) {
+        combined_clusters <- do.call(rbind, all_details)
+        write.csv(combined_clusters, file.path(output_dir, paste0("details_all_clusters_", timestamp, ".csv")), row.names = FALSE)
+      }
+      
+      # Save run parameters for reproducibility
+      params <- data.frame(
+        parameter = c("d_file", "g_file", "seed", "cluster_size_5", "cluster_size_2",
+                      "subnetwork", "distance_threshold", "network_degree_threshold",
+                      "random_sample_size", "rita_window_months", "lookback_window_months",
+                      "growth_distance_threshold", "intervention_rate", "n_simulations"),
+        value = c(d_file, g_file, as.character(seed), cluster_size_5, cluster_size_2,
+                  subnetwork, distance_threshold, network_degree_threshold,
+                  random_sample_size, rita_window_months, lookback_window_months,
+                  growth_distance_threshold, intervention_rate, length(simids))
+      )
+      write.csv(params, file.path(output_dir, paste0("parameters_", timestamp, ".csv")), row.names = FALSE)
+      
+      cat("\nOutputs saved to:", output_dir, "\n")
+      cat("  - summary_", timestamp, ".csv (aggregated metrics)\n", sep = "")
+      cat("  - counts_", timestamp, ".csv (units and contacts per strategy)\n", sep = "")
+      cat("  - details_*_", timestamp, ".csv (per-simulation/unit details)\n", sep = "")
+      cat("  - parameters_", timestamp, ".csv (run parameters for reproducibility)\n", sep = "")
+    }
 
     # Display results
     if (show_table) {
