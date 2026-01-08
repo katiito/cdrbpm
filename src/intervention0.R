@@ -105,7 +105,7 @@ run_intervention_analysis <- function(
   random_sample_size = 30,
   rita_window_months = 6, # average RITA detection window
   lookback_window_months = 6, # growth-rate trigger window
-  growth_distance_threshold = 0.1, # separate D for growth-based trigger
+  growth_distance_threshold = 0.01, # separate D for growth-based trigger
   intervention_rate = 1/90, # average 3 months to intervention
   show_table = TRUE,
   output_dir = "intervention-results"  # if non-NULL, save results to this directory
@@ -408,6 +408,57 @@ run_intervention_analysis <- function(
         print(odf1)
         cat("\nSample sizes and totals (for context):\n")
         print(counts_df)
+      }
+    }
+    
+    # -------------------------------------------------------------------------
+    # Plot cluster size distributions
+    # -------------------------------------------------------------------------
+    if (!is.null(output_dir) || show_table) {
+      # Extract cluster sizes for cluster-based interventions
+      distsize5_nc <- if (!is.null(ods5$o) && nrow(ods5$o) > 0) ods5$o$nc else numeric(0)
+      distsize2_nc <- if (!is.null(ods2$o) && nrow(ods2$o) > 0) ods2$o$nc else numeric(0)
+      growth_nc <- if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) ogrowth$o$nc else numeric(0)
+      
+      if (length(distsize5_nc) > 0 || length(distsize2_nc) > 0 || length(growth_nc) > 0) {
+        # Combine into data frame for plotting
+        plot_df <- rbind(
+          if (length(distsize5_nc) > 0) 
+            data.frame(strategy = paste0('Distance-size (k=', cluster_size_5, ')'), nc = distsize5_nc) 
+          else NULL,
+          if (length(distsize2_nc) > 0) 
+            data.frame(strategy = paste0('Distance-size (k=', cluster_size_2, ')'), nc = distsize2_nc) 
+          else NULL,
+          if (length(growth_nc) > 0) 
+            data.frame(strategy = paste0('Growth-rate (k=', cluster_size_5, ', W=', lookback_window_months, 'mo)'), nc = growth_nc) 
+          else NULL
+        )
+        
+        if (nrow(plot_df) > 0) {
+          p <- ggplot(plot_df, aes(x = nc, fill = strategy)) +
+            geom_histogram(binwidth = 1, color = 'black', alpha = 0.7) +
+            facet_wrap(~strategy, scales = 'free_y', ncol = 1) +
+            labs(
+              title = 'Distribution of Cluster Sizes at Intervention Time',
+              x = 'Number of cluster members (nc) at intervention',
+              y = 'Count'
+            ) +
+            theme_bw() +
+            theme(legend.position = 'none') +
+            scale_x_continuous(breaks = seq(0, max(plot_df$nc, na.rm = TRUE), by = 5))
+          
+          # Save plot if output_dir specified
+          if (!is.null(output_dir)) {
+            plot_path <- file.path(output_dir, paste0("cluster_sizes_", timestamp, ".png"))
+            ggsave(plot_path, p, width = 10, height = 8, dpi = 150)
+            cat("  - cluster_sizes_", timestamp, ".png (cluster size distributions)\n", sep = "")
+          }
+          
+          # Display plot if show_table is TRUE
+          if (show_table) {
+            print(p)
+          }
+        }
       }
     }
     
@@ -736,19 +787,21 @@ distsize_intervention <- function(
 
 #' Growth-rate based cluster intervention strategy
 #'
-#' Triggers intervention when cluster_size infections occur within a sliding
+#' Triggers intervention when cluster_size cases are sequenced within a sliding
 #' time window (lookback_window_months). This detects rapidly growing clusters
 #' rather than simply large clusters.
 #'
 #' Key difference from distance-size:
-#'   - Distance-size triggers on k-th sequenced case
-#'   - Growth-rate triggers when k infections occur within W months
+#'   - Distance-size triggers on k-th sequenced case (any time span)
+#'   - Growth-rate triggers when k cases are sequenced within W months
+#'
+#' Both use sequencing times for trigger and cluster membership.
 #'
 #' @param Ds List of transmission data frames, one per simulation
 #' @param Gs List of individual data frames, one per simulation
 #' @param Gall Combined individual data for all simulations
 #' @param growth_distance_threshold Genetic distance threshold (typically larger than distsize)
-#' @param cluster_size Number of infections in window to trigger
+#' @param cluster_size Number of sequenced cases in window to trigger
 #' @param lookback_window_months Width of sliding window in months
 #' @param intervention_rate Rate for exponential delay to intervention
 #'
@@ -765,8 +818,8 @@ growthrate_intervention <- function(
 
   # Inner function to process one simulation
   process_one <- function(D, G) {
-    # Order by infection time for growth trigger logic
-    G <- G[order(G$timeinfected), ]
+    # Order by SEQUENCING time (like distsize) for growth trigger
+    G <- G[order(G$timesequenced), ]
     D <- D[order(D$timetransmission), ]
 
     lastgeneration <- max(G$generation)
@@ -784,40 +837,44 @@ growthrate_intervention <- function(
     Gcluster <- G[G$pid %in% keeppids, ]
 
     # -------------------------------------------------------------------------
-    # Growth trigger: sliding window over infection times
+    # Growth trigger: sliding window over SEQUENCING times
     # -------------------------------------------------------------------------
-    # Use generation > 0 for growth detection (exclude seed)
-    Gtrig <- Gcluster[Gcluster$generation > 0, ]
+    # Exclude seed (generation 0) and last generation (not yet observable)
+    Gtrig <- Gcluster[Gcluster$generation > 0 & Gcluster$generation != lastgeneration, ]
     if (nrow(Gtrig) == 0) {
       return(c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, 
                sum_degrees = 0, sum_excess = 0, contacts_small = 0, contacts_large = 0))
     }
 
     # Sliding window algorithm to find earliest time when cluster_size
-    # infections occur within lookback_days window
-    t <- suppressWarnings(as.numeric(Gtrig$timeinfected))
+    # cases are SEQUENCED within lookback_days window
+    t <- suppressWarnings(as.numeric(Gtrig$timesequenced))
     if (all(!is.finite(t))) {
-      # No usable infection times; cannot trigger growth
       return(c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, 
                sum_degrees = 0, sum_excess = 0, contacts_small = 0, contacts_large = 0))
     }
-    # Keep only finite infection times for windowing
+    # Keep only finite sequencing times for windowing
     keep <- is.finite(t)
     t <- t[keep]
     Gtrig <- Gtrig[keep, ]
     n <- length(t)
     
     # Two-pointer sliding window: j is left edge, i is right edge
+    # Find earliest time when k cases are sequenced within lookback_days
     j <- 1
     t_detect <- Inf
+    trigger_j <- NA  # Store window indices for later
+    trigger_i <- NA
     for (i in seq_len(n)) {
       # Advance left pointer while window exceeds lookback_days
       while (j <= i && (t[i] - t[j]) > lookback_days) {
         j <- j + 1
       }
-      # Check if window contains cluster_size infections
+      # Check if window contains cluster_size sequenced cases
       if ((i - j + 1) >= cluster_size) {
-        t_detect <- t[i]
+        t_detect <- t[i]  # Trigger at the k-th sequencing time in window
+        trigger_j <- j    # Store window boundaries
+        trigger_i <- i
         break
       }
     }
@@ -826,10 +883,17 @@ growthrate_intervention <- function(
     IT <- if (is.finite(t_detect)) t_detect + rexp(1, rate = intervention_rate) else Inf
 
     # -------------------------------------------------------------------------
-    # Define cluster at IT and compute outcomes
+    # Define cluster at IT: ONLY the cases in the trigger window
     # -------------------------------------------------------------------------
-    # Filter to cluster members sequenced before IT, excluding last generation
-    G1 <- Gcluster[Gcluster$generation != lastgeneration & Gcluster$timesequenced < IT, ]
+    # For growth-rate, we only intervene on the recent k cases that triggered,
+    # not the entire historical cluster
+    G1 <- data.frame()
+    if (is.finite(IT) && !is.na(trigger_j)) {
+      # Get only the cases from the trigger window (indices j to i in Gtrig)
+      window_pids <- Gtrig$pid[trigger_j:trigger_i]
+      # Further filter to those sequenced before IT (in case of delay)
+      G1 <- Gcluster[Gcluster$pid %in% window_pids & Gcluster$timesequenced < IT, ]
+    }
 
     # Compute contacts - both subnetwork assumptions
     sum_degrees <- 0
