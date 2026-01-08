@@ -89,7 +89,8 @@ resolve_input_path <- function(file) {
 #' @param rita_window_months Average RITA detection window in months (default: 6)
 #' @param lookback_window_months Growth-rate trigger window in months (default: 6)
 #' @param growth_distance_threshold Distance threshold for growth-based clustering (default: 0.1)
-#' @param intervention_rate Rate parameter for exponential delay to intervention (default: 1/90 = ~3 months)
+#' @param analysis_delay_days Delay for cluster analysis after sequencing (default: 14 days = 2 weeks)
+#' @param implementation_delay_days Delay for implementing intervention after trigger (default: 14 days = 2 weeks)
 #' @param show_table Whether to display results table (default: TRUE)
 #' @param output_dir Directory to save results (NULL = don't save)
 #'
@@ -106,7 +107,8 @@ run_intervention_analysis <- function(
   rita_window_months = 6, # average RITA detection window
   lookback_window_months = 6, # growth-rate trigger window
   growth_distance_threshold = 0.01, # separate D for growth-based trigger
-  intervention_rate = 1/90, # average 3 months to intervention
+  analysis_delay_days = 14, # 2 weeks for cluster analysis (cluster-based only)
+  implementation_delay_days = 14, # 2 weeks to implement intervention (all strategies)
   show_table = TRUE,
   output_dir = "intervention-results"  # if non-NULL, save results to this directory
 ) {
@@ -158,7 +160,8 @@ run_intervention_analysis <- function(
         Ds = Ds, Gs = Gs, Gall = Gall,
         distance_threshold = distance_threshold,
         cluster_size = cluster_size_5,
-        intervention_rate = intervention_rate
+        analysis_delay_days = analysis_delay_days,
+        implementation_delay_days = implementation_delay_days
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -177,7 +180,8 @@ run_intervention_analysis <- function(
         Ds = Ds, Gs = Gs, Gall = Gall,
         distance_threshold = distance_threshold,
         cluster_size = cluster_size_2,
-        intervention_rate = intervention_rate
+        analysis_delay_days = analysis_delay_days,
+        implementation_delay_days = implementation_delay_days
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -197,7 +201,8 @@ run_intervention_analysis <- function(
         growth_distance_threshold = growth_distance_threshold,
         cluster_size = cluster_size_5,
         lookback_window_months = lookback_window_months,
-        intervention_rate = intervention_rate
+        analysis_delay_days = analysis_delay_days,
+        implementation_delay_days = implementation_delay_days
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -215,7 +220,7 @@ run_intervention_analysis <- function(
       random_intervention(
         Dall = Dall, Gall = Gall,
         random_sample_size = random_sample_size,
-        intervention_rate = intervention_rate
+        implementation_delay_days = implementation_delay_days
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -231,7 +236,7 @@ run_intervention_analysis <- function(
       rita_intervention(
         Dall = Dall, Gall = Gall,
         rita_window_months = rita_window_months,
-        intervention_rate = intervention_rate
+        implementation_delay_days = implementation_delay_days
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -247,7 +252,7 @@ run_intervention_analysis <- function(
       network_intervention(
         Dall = Dall, Gall = Gall,
         network_degree_threshold = network_degree_threshold,
-        intervention_rate = intervention_rate
+        implementation_delay_days = implementation_delay_days
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -401,11 +406,11 @@ run_intervention_analysis <- function(
         parameter = c("d_file", "g_file", "seed", "cluster_size_5", "cluster_size_2",
                       "distance_threshold", "network_degree_threshold",
                       "random_sample_size", "rita_window_months", "lookback_window_months",
-                      "growth_distance_threshold", "intervention_rate", "n_simulations"),
+                      "growth_distance_threshold", "analysis_delay_days", "implementation_delay_days", "n_simulations"),
         value = c(d_file, g_file, as.character(seed), cluster_size_5, cluster_size_2,
                   distance_threshold, network_degree_threshold,
                   random_sample_size, rita_window_months, lookback_window_months,
-                  growth_distance_threshold, intervention_rate, length(simids))
+                  growth_distance_threshold, analysis_delay_days, implementation_delay_days, length(simids))
       )
       write.csv(params, file.path(output_dir, paste0("parameters_", timestamp, ".csv")), row.names = FALSE)
       
@@ -533,7 +538,8 @@ run_intervention_analysis <- function(
 #' @param G Data frame of individuals for one simulation
 #' @param distance_threshold Genetic distance threshold for clustering
 #' @param cluster_size Number of sequenced cases to trigger intervention
-#' @param intervention_rate Rate for exponential delay to intervention
+#' @param analysis_delay_days Fixed delay (days) for cluster analysis after detection
+#' @param implementation_delay_days Fixed delay (days) for intervention implementation
 #'
 #' @return Named vector: pia, puta, interventiontime, nc, sum_degrees,
 #'         sum_excess, contacts_small, contacts_large
@@ -541,7 +547,8 @@ proc_cluster <- function(
     D, G, 
     distance_threshold,
     cluster_size, 
-    intervention_rate
+    analysis_delay_days,
+    implementation_delay_days
 ) 
 {
   # Sort data by relevant time variables for proper temporal ordering
@@ -574,16 +581,19 @@ proc_cluster <- function(
   # -------------------------------------------------------------------------
   # Step 2: Determine intervention time (IT)
   # -------------------------------------------------------------------------
-  # Intervention triggers when cluster_size cases have been sequenced
-  # Then add exponential delay for intervention implementation
+  # Trigger: when cluster_size cases are detected (sequenced + analysis_delay)
+  # Intervention: trigger + implementation_delay
+  # At IT, we only know about sequences from (IT - analysis_delay) due to lag
   IT <- Inf 
   if (nrow(G1) > 0 && nrow(G1) >= cluster_size) {
     idx <- cluster_size
-    IT  <- G1$timesequenced[idx] + rexp(1, rate = intervention_rate)
+    t_trigger <- G1$timesequenced[idx] + analysis_delay_days
+    IT <- t_trigger + implementation_delay_days
   }
   
-  # Filter cluster to only those sequenced before intervention time
-  G1 <- G1[ G1$timesequenced < IT , ]
+  # Filter cluster to those sequenced before (IT - analysis_delay)
+  # because at IT we only know about sequences with analysis_delay lag
+  G1 <- G1[ G1$timesequenced < (IT - analysis_delay_days) , ]
   
   # -------------------------------------------------------------------------
   # Step 3: Calculate contact network size (both subnetwork assumptions)
@@ -660,13 +670,15 @@ proc_cluster <- function(
 #' @param Gall Combined individual data for all simulations
 #' @param distance_threshold Genetic distance threshold for clustering
 #' @param cluster_size Number of cases to trigger intervention
-#' @param intervention_rate Rate for exponential delay to intervention
+#' @param analysis_delay_days Fixed delay (days) for cluster analysis after detection
+#' @param implementation_delay_days Fixed delay (days) for intervention implementation
 #'
 #' @return List with: o (detailed results), propintervened, n_units,
 #'         puta_small, puta_large, pia, total_contacts_small, total_contacts_large
 distsize_intervention <- function(
     Ds, Gs, Gall,
-    distance_threshold, cluster_size, intervention_rate
+    distance_threshold, cluster_size, 
+    analysis_delay_days, implementation_delay_days
 )
 {
   # Process each simulation using proc_cluster
@@ -676,7 +688,8 @@ distsize_intervention <- function(
         D = Ds[[i]], G = Gs[[i]],
         distance_threshold = distance_threshold,
         cluster_size = cluster_size,
-        intervention_rate = intervention_rate
+        analysis_delay_days = analysis_delay_days,
+        implementation_delay_days = implementation_delay_days
       )
     }, error = function(e) {
       # Return default values if processing fails
@@ -840,14 +853,15 @@ distsize_intervention <- function(
 #' @param growth_distance_threshold Genetic distance threshold (typically larger than distsize)
 #' @param cluster_size Number of sequenced cases in window to trigger
 #' @param lookback_window_months Width of sliding window in months
-#' @param intervention_rate Rate for exponential delay to intervention
+#' @param analysis_delay_days Fixed delay (days) for cluster analysis after detection
+#' @param implementation_delay_days Fixed delay (days) for intervention implementation
 #'
 #' @return List with same structure as distsize_intervention
 growthrate_intervention <- function(
   Ds, Gs, Gall,
   growth_distance_threshold, cluster_size,
   lookback_window_months = 3,
-  intervention_rate
+  analysis_delay_days, implementation_delay_days
 )
 {
   # Convert window to days
@@ -916,24 +930,26 @@ growthrate_intervention <- function(
       }
     }
 
-    # Set intervention time (detection + exponential delay)
-    IT <- if (is.finite(t_detect)) t_detect + rexp(1, rate = intervention_rate) else Inf
+    # Set intervention time (trigger + implementation delay)
+    # Trigger = detection time + analysis delay
+    # At IT, we only know about sequences from (IT - analysis_delay) due to lag
+    t_trigger <- if (is.finite(t_detect)) t_detect + analysis_delay_days else Inf
+    IT <- if (is.finite(t_trigger)) t_trigger + implementation_delay_days else Inf
 
     # -------------------------------------------------------------------------
-    # Define cluster at IT: trigger window cases PLUS any additional members
-    # who join the cluster during the intervention delay
+    # Define cluster at IT: only cases we KNOW about at intervention time
+    # Due to analysis_delay lag, we only know sequences from before (IT - analysis_delay)
     # -------------------------------------------------------------------------
-    # Include cluster members sequenced from trigger window start to IT
-    # This means: the k trigger cases + anyone sequenced during the delay
-    # But NOT historical cases from before the trigger window
     G1 <- data.frame()
     if (is.finite(IT) && !is.na(trigger_j)) {
       # Get the start time of the trigger window
       window_start_time <- t[trigger_j]
-      # Include all cluster members sequenced from window start to IT
+      # Include cluster members sequenced from window start to (IT - analysis_delay)
+      # This is the knowledge cutoff at intervention time
+      knowledge_cutoff <- IT - analysis_delay_days
       G1 <- Gcluster[Gcluster$generation != lastgeneration & 
                      Gcluster$timesequenced >= window_start_time & 
-                     Gcluster$timesequenced < IT, ]
+                     Gcluster$timesequenced < knowledge_cutoff, ]
     }
 
     # Compute contacts - both subnetwork assumptions
@@ -1086,11 +1102,11 @@ growthrate_intervention <- function(
 #' @param Dall Combined transmission data for all simulations
 #' @param Gall Combined individual data for all simulations
 #' @param random_sample_size Number of individuals to randomly select
-#' @param intervention_rate Rate for exponential delay to intervention
+#' @param implementation_delay_days Fixed delay (days) for intervention implementation
 #'
 #' @return List with: o (detailed results), propintervened (NA for random),
 #'         n_units, puta, pia, total_contacts
-random_intervention <- function(Dall, Gall, random_sample_size, intervention_rate)
+random_intervention <- function(Dall, Gall, random_sample_size, implementation_delay_days)
 {
   lastgeneration <- max( Gall$generation )
   
@@ -1121,8 +1137,8 @@ random_intervention <- function(Dall, Gall, random_sample_size, intervention_rat
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
     
-    # Set intervention time (sequencing + exponential delay)
-    G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
+    # Set intervention time at diagnosis + implementation delay
+    G1$IT <- G1$timediagnosed + implementation_delay_days
     
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, degree) {
@@ -1190,10 +1206,10 @@ random_intervention <- function(Dall, Gall, random_sample_size, intervention_rat
 #' @param Dall Combined transmission data for all simulations
 #' @param Gall Combined individual data for all simulations
 #' @param rita_window_months Average RITA detection window in months
-#' @param intervention_rate Rate for exponential delay to intervention
+#' @param implementation_delay_days Fixed delay (days) for intervention implementation
 #'
 #' @return List with same structure as random_intervention
-rita_intervention <- function(Dall, Gall, rita_window_months, intervention_rate)
+rita_intervention <- function(Dall, Gall, rita_window_months, implementation_delay_days)
 {
   lastgeneration <- max( Gall$generation )
   
@@ -1224,8 +1240,8 @@ rita_intervention <- function(Dall, Gall, rita_window_months, intervention_rate)
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
     
-    # Set intervention time
-    G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
+    # Set intervention time at diagnosis + implementation delay
+    G1$IT <- G1$timediagnosed + implementation_delay_days
     
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, degree) {
@@ -1297,10 +1313,10 @@ rita_intervention <- function(Dall, Gall, rita_window_months, intervention_rate)
 #' @param Dall Combined transmission data for all simulations
 #' @param Gall Combined individual data for all simulations
 #' @param network_degree_threshold Minimum degree to trigger intervention
-#' @param intervention_rate Rate for exponential delay to intervention
+#' @param implementation_delay_days Fixed delay (days) for intervention implementation
 #'
 #' @return List with same structure as random_intervention
-network_intervention <- function(Dall, Gall, network_degree_threshold, intervention_rate)
+network_intervention <- function(Dall, Gall, network_degree_threshold, implementation_delay_days)
 {
   lastgeneration <- max(Gall$generation)
   
@@ -1328,8 +1344,8 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, intervent
       ))
     }
     
-    # Set intervention time
-    G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
+    # Set intervention time at diagnosis + implementation delay
+    G1$IT <- G1$timediagnosed + implementation_delay_days
     
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, degree) {
