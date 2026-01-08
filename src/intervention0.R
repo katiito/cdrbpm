@@ -1,18 +1,62 @@
-invisible('
-experiment1 intervention model 
-')
+# =============================================================================
+# Intervention Analysis for HIV Cluster Detection Strategies
+# =============================================================================
+#
+# This script evaluates the effectiveness of different intervention strategies
+# for HIV cluster detection and response. It processes simulated epidemic data
+# to compare how various cluster prioritization methods perform in terms of:
+#   - Person-years of Untreated infection Averted (PUTA)
+#   - Potential Infections Averted (PIA)
+#   - Contact tracing efficiency
+#
+# The six intervention strategies implemented are:
+#   1. Distance-size (k=5): Trigger when 5 cases within genetic distance threshold
+#   2. Distance-size (k=2): Trigger when 2 cases within genetic distance threshold
+#   3. Growth-rate: Trigger when k infections occur within a time window
+#   4. Random allocation: Baseline comparator with randomly selected individuals
+#   5. RITA (Recent Infection Testing Algorithm): Target recently infected cases
+#   6. Network degree: Target high-degree (well-connected) individuals
+#
+# Input data:
+#   - D file (transmissions): donor, recipient, distance, timetransmission, simid
+#   - G file (individuals): pid, generation, timeinfected, timediagnosed, 
+#                           timesequenced, Fdegree, Gdegree, Hdegree, simid
+#
+# Output metrics:
+#   - PUTA: Person-years of untreated infection averted by intervention
+#   - PUTA/contact: Efficiency metric (PUTA per contact traced)
+#   - PIA: Number of potential infections averted
+#   - Contacts: Number of individuals requiring follow-up (contact tracing burden)
+#
+# Two subnetwork assumptions are computed for cluster-based strategies:
+#   - "small" (dense): Assumes cluster members are highly connected internally
+#   - "large" (sparse): Assumes cluster members have minimal internal connections
+#
+# Usage:
+#   source("intervention0.R")
+#   run_intervention_analysis(seed = 123, output_dir = "results")
+#
+# =============================================================================
 
 library(glue)
 library(ggplot2)
-## Path resolution using the 'here' package (required)
+
+# -----------------------------------------------------------------------------
+# Path resolution using the 'here' package (required)
+# Ensures file paths work correctly regardless of working directory
+# -----------------------------------------------------------------------------
 if (!requireNamespace("here", quietly = TRUE)) {
   stop("Package 'here' is required to run this script. Install it with install.packages('here').")
 }
 
-## Resolve data file paths anchored at the project root via here::here()
-## - Absolute paths are used as-is
-## - For bare filenames, prefer here('src', file) if it exists, else here(file)
-## - For relative paths with directories (e.g. 'data/x.csv'), use here(file)
+#' Resolve input file paths relative to project root
+#' 
+#' @param file Character string: filename or relative path
+#' @return Absolute path to the file
+#' @details
+#'   - Absolute paths (Unix or Windows) are returned unchanged
+#'   - Bare filenames check src/ first, then project root
+#'   - Relative paths with directories resolve from project root
 resolve_input_path <- function(file) {
   # Absolute paths (Unix or Windows) are returned unchanged
   if (grepl("^/|^[A-Za-z]:", file)) {
@@ -28,7 +72,28 @@ resolve_input_path <- function(file) {
 }
 
 
-# Main function to run intervention analysis
+# =============================================================================
+# MAIN ANALYSIS FUNCTION
+# =============================================================================
+
+#' Run complete intervention analysis across all strategies
+#'
+#' @param d_file Path to transmission data CSV (D file)
+#' @param g_file Path to individual data CSV (G file)
+#' @param seed Random seed for reproducibility (NULL = use system time)
+#' @param cluster_size_5 Cluster size threshold for strategy 1 (default: 5)
+#' @param cluster_size_2 Cluster size threshold for strategy 2 (default: 2)
+#' @param distance_threshold Genetic distance threshold for clustering (default: 0.005)
+#' @param network_degree_threshold Minimum degree to trigger network intervention (default: 4)
+#' @param random_sample_size Number of random individuals to sample (default: 30)
+#' @param rita_window_months Average RITA detection window in months (default: 6)
+#' @param lookback_window_months Growth-rate trigger window in months (default: 6)
+#' @param growth_distance_threshold Distance threshold for growth-based clustering (default: 0.1)
+#' @param intervention_rate Rate parameter for exponential delay to intervention (default: 1/90 = ~3 months)
+#' @param show_table Whether to display results table (default: TRUE)
+#' @param output_dir Directory to save results (NULL = don't save)
+#'
+#' @return List containing summary, counts, and detailed results for each strategy
 run_intervention_analysis <- function(
   d_file = 'experiment1-N10000-gens7-D.csv',
   g_file = 'experiment1-N10000-gens7-G.csv',
@@ -45,7 +110,9 @@ run_intervention_analysis <- function(
   show_table = TRUE,
   output_dir = "intervention-results"  # if non-NULL, save results to this directory
 ) {
-    # Seed
+    # -------------------------------------------------------------------------
+    # Set random seed for reproducibility
+    # -------------------------------------------------------------------------
     if (is.null(seed)) {
       seed <- as.numeric(Sys.time())
       cat("Using random seed:", seed, "\n")
@@ -54,21 +121,28 @@ run_intervention_analysis <- function(
     }
     set.seed(seed)
 
-    # Load data
+    # -------------------------------------------------------------------------
+    # Load and prepare simulation data
+    # -------------------------------------------------------------------------
     cat("Loading data...\n")
     Dall <- read.csv(resolve_input_path(d_file), stringsAs = FALSE)
     Gall <- read.csv(resolve_input_path(g_file), stringsAs = FALSE)
 
-    # Split by simid - use character keys for proper name-based subsetting
+    # Split by simulation ID
+    # CRITICAL: Use character keys to ensure proper name-based list subsetting
+    # (integer keys would cause numeric indexing, leading to mismatched D/G pairs)
     simids <- as.character(unique(Dall$simid))
     Ds <- split(Dall, Dall$simid)[simids]
     Gs <- split(Gall, Gall$simid)[simids]
     cat("  Loaded", nrow(Dall), "D rows,", nrow(Gall), "G rows across", length(simids), "simulations\n")
 
-    # Run interventions
+    # -------------------------------------------------------------------------
+    # Run all six intervention strategies
+    # -------------------------------------------------------------------------
     cat("Running interventions (6 strategies)...\n")
     t_start <- Sys.time()
 
+    # Strategy 1: Distance-size with cluster_size = 5
     cat("  [1/6] Distance-size (size=", cluster_size_5, ", D=", distance_threshold, ")...", sep = "")
     ods5 <- tryCatch(
       distsize_intervention(
@@ -86,6 +160,7 @@ run_intervention_analysis <- function(
     )
     cat(" done (", ods5$n_units, " units)\n", sep = "")
 
+    # Strategy 2: Distance-size with cluster_size = 2
     cat("  [2/6] Distance-size (size=", cluster_size_2, ", D=", distance_threshold, ")...", sep = "")
     ods2 <- tryCatch(
       distsize_intervention(
@@ -103,6 +178,7 @@ run_intervention_analysis <- function(
     )
     cat(" done (", ods2$n_units, " units)\n", sep = "")
 
+    # Strategy 3: Growth-rate based intervention
     cat("  [3/6] Growth-rate (size=", cluster_size_5, ", W=", lookback_window_months, "mo, D=", growth_distance_threshold, ")...", sep = "")
     ogrowth <- tryCatch(
       growthrate_intervention(
@@ -121,6 +197,7 @@ run_intervention_analysis <- function(
     )
     cat(" done (", ogrowth$n_units, " units)\n", sep = "")
 
+    # Strategy 4: Random allocation (baseline comparator)
     cat("  [4/6] Random allocation (n=", random_sample_size, ")...", sep = "")
     orand <- tryCatch(
       random_intervention(
@@ -136,6 +213,7 @@ run_intervention_analysis <- function(
     )
     cat(" done (", orand$n_units, " units)\n", sep = "")
 
+    # Strategy 5: RITA (Recent Infection Testing Algorithm)
     cat("  [5/6] RITA (window=", rita_window_months, "mo)...", sep = "")
     orita <- tryCatch(
       rita_intervention(
@@ -151,6 +229,7 @@ run_intervention_analysis <- function(
     )
     cat(" done (", orita$n_units, " units)\n", sep = "")
 
+    # Strategy 6: Network degree-based intervention
     cat("  [6/6] Network degree (threshold=", network_degree_threshold, ")...", sep = "")
     onet <- tryCatch(
       network_intervention(
@@ -169,8 +248,11 @@ run_intervention_analysis <- function(
     elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "secs"))
     cat("All interventions completed in", round(elapsed, 1), "seconds\n\n")
 
-    # Compile summary table with subnetwork as rows (not columns) for readability
-    # Cluster-based strategies get 2 rows each (small/large), individual-based get 1 row
+    # -------------------------------------------------------------------------
+    # Compile summary table
+    # -------------------------------------------------------------------------
+    # Cluster-based strategies get 2 rows each (small/large subnetwork)
+    # Individual-based strategies get 1 row (subnetwork = "-")
     
     # Helper to build a row for each strategy+subnetwork combination
     build_row <- function(strategy_name, subnetwork, contacts, puta_vec, pia_vec) {
@@ -208,12 +290,13 @@ run_intervention_analysis <- function(
       build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$puta, onet$pia)
     ) |> as.data.frame()
     
-    # Convert numeric columns
+    # Convert numeric columns from character
     num_cols <- c("Contacts", "Total_PUTA", "PUTA/contact", "Median", "Low", "High", "PIA", "PIA_Low", "PIA_High")
     odf[num_cols] <- lapply(odf[num_cols], as.numeric)
     odf1 <- odf
     odf1[num_cols] <- lapply(odf1[num_cols], function(x) round(x, 2))
 
+    # Secondary counts table: units and contacts per strategy
     counts_df <- data.frame(
       Strategy = c(
         paste0('Size=', cluster_size_5, ',D=', distance_threshold),
@@ -230,7 +313,9 @@ run_intervention_analysis <- function(
                          orand$total_contacts, orita$total_contacts, onet$total_contacts)
     )
 
-    # Save outputs to files if output_dir is specified
+    # -------------------------------------------------------------------------
+    # Save outputs to files (if output_dir specified)
+    # -------------------------------------------------------------------------
     if (!is.null(output_dir)) {
       if (!dir.exists(output_dir)) {
         dir.create(output_dir, recursive = TRUE)
@@ -311,7 +396,9 @@ run_intervention_analysis <- function(
       cat("  - parameters_", timestamp, ".csv (run parameters for reproducibility)\n", sep = "")
     }
 
+    # -------------------------------------------------------------------------
     # Display results
+    # -------------------------------------------------------------------------
     if (show_table) {
       if (require(knitr, quietly = TRUE)) {
         print(knitr::kable(odf1))
@@ -339,13 +426,46 @@ run_intervention_analysis <- function(
     ))
   }
 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-###### ### ### ### ###  INTERVENTION FUNCTIONS ### ### ### ### ### ### 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# =============================================================================
+# INTERVENTION STRATEGY FUNCTIONS
+# =============================================================================
+# Each function implements a specific cluster detection/intervention strategy.
+# Cluster-based strategies (proc_cluster, distsize, growthrate) compute both
+# "small" and "large" subnetwork contact estimates.
+# Individual-based strategies (random, rita, network) compute single contacts.
+# =============================================================================
 
 
+# -----------------------------------------------------------------------------
+# Core cluster processing function
+# -----------------------------------------------------------------------------
 
-# Process individual cluster for intervention analysis
+#' Process a single simulation to find and evaluate a cluster
+#'
+#' This function identifies a genetic cluster within a single simulation,
+#' determines when intervention would be triggered, and calculates outcomes.
+#'
+#' Cluster formation logic:
+#'   1. Filter transmissions to those within distance_threshold
+#'   2. Build cluster by traversing from patient 0 through connected cases
+#'   3. Exclude the final generation (not yet observable)
+#'   4. Trigger intervention when cluster_size cases are sequenced
+#'   5. Add exponential delay for intervention implementation
+#'
+#' Contact network estimation (two assumptions):
+#'   - Small/Dense: contacts = n + sum(max(degree - (n-1), 0))
+#'     Assumes cluster members are all connected to each other internally
+#'   - Large/Sparse: contacts = sum(degrees) - (n - 2)
+#'     Assumes minimal internal connections among cluster members
+#'
+#' @param D Data frame of transmissions for one simulation
+#' @param G Data frame of individuals for one simulation
+#' @param distance_threshold Genetic distance threshold for clustering
+#' @param cluster_size Number of sequenced cases to trigger intervention
+#' @param intervention_rate Rate for exponential delay to intervention
+#'
+#' @return Named vector: pia, puta, interventiontime, nc, sum_degrees,
+#'         sum_excess, contacts_small, contacts_large
 proc_cluster <- function(
     D, G, 
     distance_threshold,
@@ -353,16 +473,20 @@ proc_cluster <- function(
     intervention_rate
 ) 
 {
-  # (growth threshold not implemented)
-  
-  # Sort data by relevant time variables
+  # Sort data by relevant time variables for proper temporal ordering
   G <- G[ order(G$timesequenced), ]
   D <- D[ order(D$timetransmission),]
   
   lastgeneration <- max( G$generation )
   
-  # Retain cases with path to patient 0, within distance threshold, excluding last generation
+  # -------------------------------------------------------------------------
+  # Step 1: Build genetic cluster from patient 0
+  # -------------------------------------------------------------------------
+  # Filter to transmissions within distance threshold
   D1 <- D[ D$distance <= distance_threshold , ]
+  
+  # Traverse transmission network starting from patient 0
+  # Build set of all reachable patients (connected component)
   keeppids <- "0" 
   addpids  <- D1$recipient[ D1$donor %in% keeppids ]
   
@@ -371,72 +495,110 @@ proc_cluster <- function(
     addpids  <- setdiff( D1$recipient[ D1$donor %in% keeppids ], keeppids )
   }
   
+  # Filter to cluster members, excluding last generation (not yet observable)
   G1 <- G[ G$pid %in% keeppids , ]
   G1 <- G1[ G1$generation != lastgeneration, ]
   D1 <- D1[ D1$donor %in% G1$pid & D1$recipient %in% G1$pid, ]
   
-  # find intervention time, if there is one 
+  # -------------------------------------------------------------------------
+  # Step 2: Determine intervention time (IT)
+  # -------------------------------------------------------------------------
+  # Intervention triggers when cluster_size cases have been sequenced
+  # Then add exponential delay for intervention implementation
   IT <- Inf 
   if (nrow(G1) > 0 && nrow(G1) >= cluster_size) {
     idx <- cluster_size
     IT  <- G1$timesequenced[idx] + rexp(1, rate = intervention_rate)
   }
   
-  # Exclude clustered infections detected after intervention time
+  # Filter cluster to only those sequenced before intervention time
   G1 <- G1[ G1$timesequenced < IT , ]
   
-  # Calculate total cluster contact network size (both small and large)
+  # -------------------------------------------------------------------------
+  # Step 3: Calculate contact network size (both subnetwork assumptions)
+  # -------------------------------------------------------------------------
   sum_degrees <- 0
   sum_excess <- 0
   contacts_small <- 0
   contacts_large <- 0
   
   if (nrow(G1) > 0) {
-    # Get cluster members' total degrees
+    # Total degree = sum of F (long-term), G (casual), H (one-time) partnerships
     G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
     sum_degrees <- sum(G1$degree)
     n <- nrow(G1)
     
-    # Compute both subnetwork assumptions
+    # Small/Dense subnetwork: cluster members are fully connected internally
+    # External contacts = degree minus connections to other cluster members
+    # excess = max(degree - (n-1), 0) for each member
     excess <- pmax(G1$degree - (n - 1), 0)
     sum_excess <- sum(excess)
-    contacts_small <- n + sum_excess          # dense connections inside cluster
-    contacts_large <- sum_degrees - (n - 2)   # sparse connections inside cluster
+    contacts_small <- n + sum_excess
+    
+    # Large/Sparse subnetwork: minimal internal connections
+    # Only transmission links connect cluster members
+    contacts_large <- sum_degrees - (n - 2)
   }
   
-  # Calculate potential infections averted (PIA) and person-years untreated averted (PUTA)
+  # -------------------------------------------------------------------------
+  # Step 4: Calculate intervention outcomes (PIA and PUTA)
+  # -------------------------------------------------------------------------
+  # PIA: Potential Infections Averted - infections that occur after IT
+  # PUTA: Person-years Untreated Averted - time between IT and diagnosis
+  #       for people infected before IT but not yet diagnosed
   
   pia <- 0 
   puta <- 0 
   
-  # calculate transmissions from and to D (this is different to original code where final union was omitted)
+  # Calculate transmissions from and to cluster members
   if (!is.infinite( IT ) )
   {
+    # Find all individuals connected to cluster (donors, recipients, and members)
     piapids <-  D$recipient[D$donor %in% G1$pid] |> 
       union(G1$pid) |> 
       union(D$donor[D$recipient %in% G1$pid]) 
     
     G2  <- G[ G$pid %in% piapids , ]
+    
+    # PIA: count infections occurring after intervention time
     pia <- sum( G2$timeinfected  > IT )
     
+    # PUTA: sum of (diagnosis time - IT) for those infected before IT
+    #       but diagnosed after IT
     G3   <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT , ]
     puta <- sum( G3$timediagnosed - IT )
   }
+  
   c(pia = pia, puta = puta, interventiontime = IT, nc = nrow(G1), 
     sum_degrees = sum_degrees, sum_excess = sum_excess,
     contacts_small = contacts_small, contacts_large = contacts_large)
 }
 
   
-### ### ### # Distance-size intervention strategy
+# -----------------------------------------------------------------------------
+# Strategy 1 & 2: Distance-size intervention
+# -----------------------------------------------------------------------------
 
+#' Distance-size cluster intervention strategy
+#'
+#' Triggers intervention when cluster_size genetically-linked cases are detected.
+#' A cluster is defined by genetic distance threshold (e.g., 0.005 = 0.5% divergence).
+#'
+#' @param Ds List of transmission data frames, one per simulation
+#' @param Gs List of individual data frames, one per simulation
+#' @param Gall Combined individual data for all simulations
+#' @param distance_threshold Genetic distance threshold for clustering
+#' @param cluster_size Number of cases to trigger intervention
+#' @param intervention_rate Rate for exponential delay to intervention
+#'
+#' @return List with: o (detailed results), propintervened, n_units,
+#'         puta_small, puta_large, pia, total_contacts_small, total_contacts_large
 distsize_intervention <- function(
     Ds, Gs, Gall,
     distance_threshold, cluster_size, intervention_rate
 )
 {
-  
-  # Process all simulations
+  # Process each simulation using proc_cluster
   o <- lapply(seq_along(Ds), function(i) {
     tryCatch({
       proc_cluster(
@@ -452,15 +614,19 @@ distsize_intervention <- function(
     })
   })
   
+  # Combine results into data frame
   odf  <- do.call( rbind, o ) |> as.data.frame()
-  # Attach simulation identifiers to each row for debugging/traceability
+  
+  # Attach simulation identifiers for traceability
   simids_vec <- names(Ds)
   odf$simid <- if (!is.null(simids_vec)) simids_vec else seq_len(nrow(odf))
-  # Reorder columns to bring simid upfront
   odf <- odf[, c("simid", "pia", "puta", "interventiontime", "nc", 
                  "sum_degrees", "sum_excess", "contacts_small", "contacts_large")]
 
-  # Sanity-correct nc and contacts by recomputing deterministically at the recorded IT
+  # -------------------------------------------------------------------------
+  # Sanity-check: Recompute nc and contacts deterministically at recorded IT
+  # This ensures consistency when intervention time was sampled stochastically
+  # -------------------------------------------------------------------------
   if (nrow(odf) > 0) {
     # Coerce potential character columns
     suppressWarnings({
@@ -500,10 +666,13 @@ distsize_intervention <- function(
       odf$contacts_large[i] <- sum_deg - (n - 2)
     }
   }
-  odf1 <- odf[ !is.infinite( odf$interventiontime ), ] # exclude sims where no cluster found 
+  
+  # Filter to simulations where a cluster was found (finite IT)
+  odf1 <- odf[ !is.infinite( odf$interventiontime ), ]
   
   lastgen <- max( Gall$generation )
   
+  # Handle case where no clusters were found
   if (nrow(odf1) == 0) {
     return(list(
       o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0), 
@@ -519,20 +688,26 @@ distsize_intervention <- function(
     ))
   }
   
-  # Compute PUTA efficiency for small subnetwork
+  # -------------------------------------------------------------------------
+  # Compute summary statistics
+  # -------------------------------------------------------------------------
+  
+  # PUTA efficiency for small subnetwork assumption
   e_puta_small <- odf1$puta / odf1$contacts_small
   e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
   med_puta_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
   q_puta_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
   
-  # Compute PUTA efficiency for large subnetwork
+  # PUTA efficiency for large subnetwork assumption
   e_puta_large <- odf1$puta / odf1$contacts_large
   e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
   med_puta_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
   q_puta_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
   
+  # PIA distribution
   sort_pia <- sort(odf1$pia)
   
+  # Return comprehensive results
   list(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
@@ -555,8 +730,29 @@ distsize_intervention <- function(
   )
 }
 
-### ### ### # Growth-rate cluster intervention
+# -----------------------------------------------------------------------------
+# Strategy 3: Growth-rate cluster intervention
+# -----------------------------------------------------------------------------
 
+#' Growth-rate based cluster intervention strategy
+#'
+#' Triggers intervention when cluster_size infections occur within a sliding
+#' time window (lookback_window_months). This detects rapidly growing clusters
+#' rather than simply large clusters.
+#'
+#' Key difference from distance-size:
+#'   - Distance-size triggers on k-th sequenced case
+#'   - Growth-rate triggers when k infections occur within W months
+#'
+#' @param Ds List of transmission data frames, one per simulation
+#' @param Gs List of individual data frames, one per simulation
+#' @param Gall Combined individual data for all simulations
+#' @param growth_distance_threshold Genetic distance threshold (typically larger than distsize)
+#' @param cluster_size Number of infections in window to trigger
+#' @param lookback_window_months Width of sliding window in months
+#' @param intervention_rate Rate for exponential delay to intervention
+#'
+#' @return List with same structure as distsize_intervention
 growthrate_intervention <- function(
   Ds, Gs, Gall,
   growth_distance_threshold, cluster_size,
@@ -564,8 +760,10 @@ growthrate_intervention <- function(
   intervention_rate
 )
 {
+  # Convert window to days
   lookback_days <- lookback_window_months * 30
 
+  # Inner function to process one simulation
   process_one <- function(D, G) {
     # Order by infection time for growth trigger logic
     G <- G[order(G$timeinfected), ]
@@ -573,7 +771,9 @@ growthrate_intervention <- function(
 
     lastgeneration <- max(G$generation)
 
-    # Build cluster reachable from seed via edges within growth_distance_threshold
+    # -------------------------------------------------------------------------
+    # Build genetic cluster (same logic as distsize)
+    # -------------------------------------------------------------------------
     D1 <- D[D$distance <= growth_distance_threshold, ]
     keeppids <- "0"
     addpids <- D1$recipient[D1$donor %in% keeppids]
@@ -583,14 +783,18 @@ growthrate_intervention <- function(
     }
     Gcluster <- G[G$pid %in% keeppids, ]
 
-    # Use generation > 0 for growth detection; include last generation for trigger decision
+    # -------------------------------------------------------------------------
+    # Growth trigger: sliding window over infection times
+    # -------------------------------------------------------------------------
+    # Use generation > 0 for growth detection (exclude seed)
     Gtrig <- Gcluster[Gcluster$generation > 0, ]
     if (nrow(Gtrig) == 0) {
       return(c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, 
                sum_degrees = 0, sum_excess = 0, contacts_small = 0, contacts_large = 0))
     }
 
-    # Sliding window over infection times: earliest time t where count in [t-lookback_days, t] >= cluster_size
+    # Sliding window algorithm to find earliest time when cluster_size
+    # infections occur within lookback_days window
     t <- suppressWarnings(as.numeric(Gtrig$timeinfected))
     if (all(!is.finite(t))) {
       # No usable infection times; cannot trigger growth
@@ -602,24 +806,32 @@ growthrate_intervention <- function(
     t <- t[keep]
     Gtrig <- Gtrig[keep, ]
     n <- length(t)
+    
+    # Two-pointer sliding window: j is left edge, i is right edge
     j <- 1
     t_detect <- Inf
     for (i in seq_len(n)) {
+      # Advance left pointer while window exceeds lookback_days
       while (j <= i && (t[i] - t[j]) > lookback_days) {
         j <- j + 1
       }
+      # Check if window contains cluster_size infections
       if ((i - j + 1) >= cluster_size) {
         t_detect <- t[i]
         break
       }
     }
 
+    # Set intervention time (detection + exponential delay)
     IT <- if (is.finite(t_detect)) t_detect + rexp(1, rate = intervention_rate) else Inf
 
-    # Define cluster members at IT for outcomes: exclude last generation, require timesequenced < IT
+    # -------------------------------------------------------------------------
+    # Define cluster at IT and compute outcomes
+    # -------------------------------------------------------------------------
+    # Filter to cluster members sequenced before IT, excluding last generation
     G1 <- Gcluster[Gcluster$generation != lastgeneration & Gcluster$timesequenced < IT, ]
 
-    # Compute contacts within cluster - both subnetwork assumptions
+    # Compute contacts - both subnetwork assumptions
     sum_degrees <- 0
     sum_excess <- 0
     contacts_small <- 0
@@ -634,7 +846,7 @@ growthrate_intervention <- function(
       contacts_large <- sum_degrees - (n1 - 2)
     }
 
-    # PIA/PUTA consistent with other cluster strategy
+    # Calculate PIA/PUTA (same logic as distsize)
     pia <- 0
     puta <- 0
     if (is.finite(IT) && nrow(G1) > 0) {
@@ -668,7 +880,7 @@ growthrate_intervention <- function(
   odf <- odf[, c("simid", "pia", "puta", "interventiontime", "nc", 
                  "sum_degrees", "sum_excess", "contacts_small", "contacts_large")]
 
-  # Coerce numeric columns
+  # Coerce columns to numeric
   suppressWarnings({
     odf$interventiontime <- as.numeric(odf$interventiontime)
     odf$nc <- as.numeric(odf$nc)
@@ -678,9 +890,11 @@ growthrate_intervention <- function(
     odf$contacts_large <- as.numeric(odf$contacts_large)
   })
 
+  # Filter to simulations where growth trigger fired
   odf1 <- odf[!is.infinite(odf$interventiontime), ]
   lastgen <- max(Gall$generation)
 
+  # Handle case where no clusters triggered
   if (nrow(odf1) == 0) {
     return(list(
       o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0),
@@ -696,7 +910,11 @@ growthrate_intervention <- function(
     ))
   }
 
-  # Compute PUTA efficiency for small subnetwork
+  # -------------------------------------------------------------------------
+  # Compute summary statistics (same structure as distsize)
+  # -------------------------------------------------------------------------
+  
+  # PUTA efficiency for small subnetwork
   e_puta_small <- odf1$puta / odf1$contacts_small
   e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
   med_puta_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
@@ -732,16 +950,29 @@ growthrate_intervention <- function(
   )
 }
 
-  invisible( '
-  	select random case from generation after seed and before last generation 
-  	sim intervention time 
-  	trace one generation + donor 
-  ')
+# -----------------------------------------------------------------------------
+# Strategy 4: Random allocation intervention (baseline comparator)
+# -----------------------------------------------------------------------------
+
+#' Random allocation intervention strategy
+#'
+#' Randomly selects individuals for intervention as a baseline comparator.
+#' This represents a non-targeted approach where resources are allocated
+#' without using cluster or risk information.
+#'
+#' @param Dall Combined transmission data for all simulations
+#' @param Gall Combined individual data for all simulations
+#' @param random_sample_size Number of individuals to randomly select
+#' @param intervention_rate Rate for exponential delay to intervention
+#'
+#' @return List with: o (detailed results), propintervened (NA for random),
+#'         n_units, puta, pia, total_contacts
+random_intervention <- function(Dall, Gall, random_sample_size, intervention_rate)
+{
+  lastgeneration <- max( Gall$generation )
   
-  random_intervention <- function(Dall, Gall, random_sample_size, intervention_rate)
-  {
-    lastgeneration <- max( Gall$generation )
-    G1 <- Gall[ Gall$generation > 0 & Gall$generation < lastgeneration, ] # gen 2+ 
+  # Select from generations 2+ (excluding seed and last generation)
+  G1 <- Gall[ Gall$generation > 0 & Gall$generation < lastgeneration, ]
     
     if (nrow(G1) == 0) {
       return(list(
@@ -758,23 +989,21 @@ growthrate_intervention <- function(
     sample_size <- min(random_sample_size, nrow(G1))
     G1 <- G1 |> dplyr::slice_sample(n = sample_size)
     
-    # Compute weighted degree before making PIDs unique
+    # Total degree = F + G + H partnerships
     G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
     
-    
-    # make pids unique 
+    # Make PIDs unique across simulations by appending simid
     G1$pid <- paste(sep='.', G1$pid, G1$simid )
     D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
     
-    # Set intervention time
-    # G1$IT <-  G1$timesequenced + ritdist( nrow(G1 )) 
+    # Set intervention time (sequencing + exponential delay)
     G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
     
-    # Process individual intervention
-    proc_indiv <- function(pid, IT, degree )
-    {
+    # Process individual intervention outcomes
+    proc_indiv <- function(pid, IT, degree) {
+      # Find all contacts: recipients (transmitted to), self, donors (transmitted from)
       piapids <- D$recipient[ D$donor == pid] |> 
         union( c( pid, D$donor[D$recipient==pid] )) 
       
@@ -784,49 +1013,66 @@ growthrate_intervention <- function(
       G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       puta <- sum( G3$timediagnosed - IT )
       
-      c( pia, puta,degree + 1 )
+      # Contacts = degree + 1 (self)
+      c( pia, puta, degree + 1 )
     }
+    
     mapply(proc_indiv, G1$pid, G1$IT, G1$degree ) -> o 
     o <- as.data.frame( t( o ) )
     colnames(o) <- c('pia', 'puta', 'contacts' )
     
-    
-  e_puta_percontact <- o$puta / o$contacts
-  med_puta_percontact <- median(e_puta_percontact, na.rm = TRUE)
-  q_puta_percontact <- quantile(e_puta_percontact, probs = c(0.1, 0.9), na.rm = TRUE, names = FALSE)
+    # Compute summary statistics
+    e_puta_percontact <- o$puta / o$contacts
+    med_puta_percontact <- median(e_puta_percontact, na.rm = TRUE)
+    q_puta_percontact <- quantile(e_puta_percontact, probs = c(0.1, 0.9), na.rm = TRUE, names = FALSE)
     sort_pia <- sort(o$pia)
-    
     
     list(
       o = o,
-      propintervened = NA,
+      propintervened = NA,  # Not applicable for random selection
       n_units = nrow(o),
-  puta = c(sum(o$puta),
-       sum(o$puta) / sum(o$contacts),
-       med_puta_percontact,
-       q_puta_percontact[1],
-       q_puta_percontact[2]),
+      puta = c(sum(o$puta),
+               sum(o$puta) / sum(o$contacts),
+               med_puta_percontact,
+               q_puta_percontact[1],
+               q_puta_percontact[2]),
       pia = c(mean(o$pia), 
               sort_pia[max(1, ceiling(0.01 * nrow(G1)))], 
               sort_pia[min(nrow(G1), floor(0.99 * nrow(G1)))]),
       total_contacts = sum(o$contacts)
     )
-  }
+}
+
+# -----------------------------------------------------------------------------
+# Strategy 5: RITA intervention (Recent Infection Testing Algorithm)
+# -----------------------------------------------------------------------------
+
+#' RITA-based intervention strategy
+#'
+#' Targets individuals identified as recently infected using the Recent
+#' Infection Testing Algorithm. RITA detects acute infections based on
+#' biomarkers that indicate infection within approximately 6 months.
+#'
+#' RITA simulation:
+#'   - Test is positive if (time_diagnosed - time_infected) < random exponential
+#'   - Average detection window is rita_window_months (default 6 months)
+#'
+#' @param Dall Combined transmission data for all simulations
+#' @param Gall Combined individual data for all simulations
+#' @param rita_window_months Average RITA detection window in months
+#' @param intervention_rate Rate for exponential delay to intervention
+#'
+#' @return List with same structure as random_intervention
+rita_intervention <- function(Dall, Gall, rita_window_months, intervention_rate)
+{
+  lastgeneration <- max( Gall$generation )
   
-  invisible('
-  Intervene on cases with acute infection 
-  Simulated RITA test
-  6 month average detection window 
-  	  ')
-  rita_intervention <- function(Dall, Gall, rita_window_months, intervention_rate)
-  {
-    lastgeneration <- max( Gall$generation )
-    
-    # RITA test simulation - 6 month average detection window
-    Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rita_window_months*30)))
-    
-    # Filter generations & only RITA positive cases
-    G1 <- Gall[Gall$rita & (Gall$generation > 0) & (Gall$generation < lastgeneration), ]
+  # Simulate RITA test: positive if diagnosed within random window of infection
+  # Average window = rita_window_months * 30 days
+  Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rita_window_months*30)))
+  
+  # Filter to RITA-positive cases in generations 2+ (excluding last)
+  G1 <- Gall[Gall$rita & (Gall$generation > 0) & (Gall$generation < lastgeneration), ]
     
     if (nrow(G1) == 0) {
       return(list(
@@ -839,22 +1085,19 @@ growthrate_intervention <- function(
       ))
     }
     
-    # Compute weighted degree for RITA-positive individuals
+    # Total degree for RITA-positive individuals
     G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
     
-    
-    
-    # make pids unique 
+    # Make PIDs unique across simulations
     G1$pid <- paste(sep = '.', G1$pid, G1$simid)
     D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
     
-    
-    
+    # Set intervention time
     G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
     
-    # Process individual intervention
+    # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, degree) {
       piapids <- D$recipient[D$donor == pid] |> 
         union(c(pid, D$donor[D$recipient == pid]))
@@ -868,59 +1111,74 @@ growthrate_intervention <- function(
       c(pia, puta, degree + 1)
     }
     
-    # Process all cases
+    # Process all RITA-positive cases
     results <- matrix(nrow = nrow(G1), ncol = 3)
-  for (i in seq_len(nrow(G1))) {
+    for (i in seq_len(nrow(G1))) {
       results[i, ] <- proc_indiv(G1$pid[i], G1$IT[i], G1$degree[i])
     }
     
     o <- as.data.frame(results)
     colnames(o) <- c('pia', 'puta', 'contacts')
     
-    # Need to make the pia and puta calculations consistent (either efficiency or total)
-  e_puta_percontact <- o$puta / o$contacts
-  med_puta_percontact <- median(e_puta_percontact, na.rm = TRUE)
-  q_puta_percontact <- quantile(e_puta_percontact, probs = c(0.1, 0.9), na.rm = TRUE, names = FALSE)
+    # Compute summary statistics
+    e_puta_percontact <- o$puta / o$contacts
+    med_puta_percontact <- median(e_puta_percontact, na.rm = TRUE)
+    q_puta_percontact <- quantile(e_puta_percontact, probs = c(0.1, 0.9), na.rm = TRUE, names = FALSE)
     sort_pia <- sort(o$pia)
     
     list(
       o = o,
-      propintervened = NA,
+      propintervened = NA,  # Not directly comparable to cluster-based
       n_units = nrow(o),
-  puta = c(sum(o$puta),
-       sum(o$puta) / sum(o$contacts),
-       med_puta_percontact,
-       q_puta_percontact[1],
-       q_puta_percontact[2]),
+      puta = c(sum(o$puta),
+               sum(o$puta) / sum(o$contacts),
+               med_puta_percontact,
+               q_puta_percontact[1],
+               q_puta_percontact[2]),
       pia = c(mean(o$pia), 
               sort_pia[max(1, ceiling(0.01 * nrow(o)))], 
               sort_pia[min(nrow(o), floor(0.99 * nrow(o)))]),
       total_contacts = sum(o$contacts)
     )
-  }
+}
+
+
+# -----------------------------------------------------------------------------
+# Strategy 6: Network degree intervention
+# -----------------------------------------------------------------------------
+
+#' Network degree-based intervention strategy
+#'
+#' Targets individuals with high network degree (many sexual partners).
+#' This approach prioritizes "superspreaders" who may be more likely to
+#' transmit infection to many others.
+#'
+#' Degree calculation:
+#'   degree = Fdegree + Gdegree + Hdegree
+#'   (sum of long-term, casual, and one-time partnerships)
+#'
+#' @param Dall Combined transmission data for all simulations
+#' @param Gall Combined individual data for all simulations
+#' @param network_degree_threshold Minimum degree to trigger intervention
+#' @param intervention_rate Rate for exponential delay to intervention
+#'
+#' @return List with same structure as random_intervention
+network_intervention <- function(Dall, Gall, network_degree_threshold, intervention_rate)
+{
+  lastgeneration <- max(Gall$generation)
   
+  # Make PIDs unique across simulations
+  D <- Dall
+  D$donor <- paste(sep = '.', D$donor, D$simid)
+  D$recipient <- paste(sep = '.', D$recipient, D$simid)
+  G <- Gall
+  G$pid <- paste(sep = '.', G$pid, G$simid)
   
-  network_intervention <- function(Dall, Gall, network_degree_threshold, intervention_rate)
-  {
-    # do not use weighting and instead just use contact numbers if 
-    # w <- 7.0 / 2.0 # ratio duration F to G 
-    # ww <-  7.0*30.0 # if unit daiy oo contact rate, E partners in 7 months (F duration) 
-    
-    lastgeneration <- max(Gall$generation)
-    
-    # Make pids unique across simulations
-    D <- Dall
-    D$donor <- paste(sep = '.', D$donor, D$simid)
-    D$recipient <- paste(sep = '.', D$recipient, D$simid)
-    G <- Gall
-    G$pid <- paste(sep = '.', G$pid, G$simid)
-    
-    # compute weighted degree ( exp partners over 7 months )
-    # G$degree  <-  with( G, Fdegree + w*Gdegree + ww*Hdegree)
-    G$degree <- with(G, Fdegree + Gdegree + Hdegree)
-    
-    # filter generations & only degree above threshold  
-    G1 <- G[ (G$degree>=network_degree_threshold) & (G$generation > 0) & (G$generation < lastgeneration), ] # gen 2+ 
+  # Calculate total degree (sum of all partnership types)
+  G$degree <- with(G, Fdegree + Gdegree + Hdegree)
+  
+  # Filter to high-degree individuals in generations 2+ (excluding last)
+  G1 <- G[ (G$degree>=network_degree_threshold) & (G$generation > 0) & (G$generation < lastgeneration), ]
     
     if (nrow(G1) == 0) {
       return(list(
@@ -933,15 +1191,11 @@ growthrate_intervention <- function(
       ))
     }
     
-    
-    
     # Set intervention time
     G1$IT <- G1$timesequenced + rexp(nrow(G1), rate = intervention_rate)
     
-    # Process individual intervention
-    
-    proc_indiv <- function(pid, IT, degree )
-    {
+    # Process individual intervention outcomes
+    proc_indiv <- function(pid, IT, degree) {
       piapids <- D$recipient[D$donor == pid] |> 
         union(c(pid, D$donor[D$recipient == pid]))
       
@@ -953,30 +1207,29 @@ growthrate_intervention <- function(
       
       c(pia, puta, degree + 1)
     }
-    mapply(proc_indiv, G1$pid, G1$IT, G1$degree ) -> o 
-    o <- as.data.frame( t( o ) )
-    colnames(o) <- c('pia', 'puta','contacts' )
-  e_puta_percontact <- o$puta / o$contacts
-  med_puta_percontact <- median(e_puta_percontact, na.rm = TRUE)
-  q_puta_percontact <- quantile(e_puta_percontact, probs = c(0.1, 0.9), na.rm = TRUE, names = FALSE)
-  sort_pia <- sort(o$pia / o$contacts)
+    
+    mapply(proc_indiv, G1$pid, G1$IT, G1$degree) -> o 
+    o <- as.data.frame(t(o))
+    colnames(o) <- c('pia', 'puta', 'contacts')
+    
+    # Compute summary statistics
+    e_puta_percontact <- o$puta / o$contacts
+    med_puta_percontact <- median(e_puta_percontact, na.rm = TRUE)
+    q_puta_percontact <- quantile(e_puta_percontact, probs = c(0.1, 0.9), na.rm = TRUE, names = FALSE)
+    sort_pia <- sort(o$pia / o$contacts)
     
     list(
       o = o,
-      propintervened = NA,
+      propintervened = NA,  # Not directly comparable to cluster-based
       n_units = nrow(o),
-  puta = c(sum(o$puta),
-       sum(o$puta) / sum(o$contacts),
-       med_puta_percontact,
-       q_puta_percontact[1],
-       q_puta_percontact[2]),
+      puta = c(sum(o$puta),
+               sum(o$puta) / sum(o$contacts),
+               med_puta_percontact,
+               q_puta_percontact[1],
+               q_puta_percontact[2]),
       pia = c(mean(o$pia), 
               sort_pia[max(1, ceiling(0.01 * nrow(o)))], 
               sort_pia[min(nrow(o), floor(0.99 * nrow(o)))]),
       total_contacts = sum(o$contacts)
     )
-  }
-  
-  
-  
-  
+}
