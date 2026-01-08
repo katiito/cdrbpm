@@ -170,42 +170,60 @@ run_intervention_analysis <- function(
     elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "secs"))
     cat("All interventions completed in", round(elapsed, 1), "seconds\n\n")
 
-    # Compile summary table with both subnetwork calculations
-    # For cluster-based strategies (ods5, ods2, ogrowth), we have puta_small and puta_large
-    # For individual-based strategies (orand, orita, onet), we only have puta (single value)
+    # Compile summary table with subnetwork as rows (not columns) for readability
+    # Cluster-based strategies get 2 rows each (small/large), individual-based get 1 row
     
-    strategy_names <- c(
-      paste0('Size=', cluster_size_5, ',D=', distance_threshold),
-      paste0('Size=', cluster_size_2, ',D=', distance_threshold),
-      paste0('Growth, size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
-      'Random allocation',
-      'RITA',
-      paste0('Network, partners>', network_degree_threshold)
-    )
+    # Helper to build a row for each strategy+subnetwork combination
+    build_row <- function(strategy_name, subnetwork, contacts, puta_vec, pia_vec) {
+      c(Strategy = strategy_name, Subnetwork = subnetwork,
+        Contacts = contacts, 
+        Total_PUTA = puta_vec[1], 
+        `PUTA/contact` = puta_vec[2],
+        Median = puta_vec[3], 
+        Low = puta_vec[4], 
+        High = puta_vec[5],
+        PIA = pia_vec[1], 
+        PIA_Low = pia_vec[2], 
+        PIA_High = pia_vec[3])
+    }
     
-    # Build summary with both small and large subnetwork columns
     odf <- rbind(
-      # Cluster-based strategies have both subnetwork calculations
-      c(ods5$total_contacts_small, ods5$total_contacts_large, ods5$puta_small, ods5$puta_large, ods5$pia),
-      c(ods2$total_contacts_small, ods2$total_contacts_large, ods2$puta_small, ods2$puta_large, ods2$pia),
-      c(ogrowth$total_contacts_small, ogrowth$total_contacts_large, ogrowth$puta_small, ogrowth$puta_large, ogrowth$pia),
-      # Individual-based strategies: total_contacts is same for both, puta also same
-      c(orand$total_contacts, orand$total_contacts, orand$puta, orand$puta, orand$pia),
-      c(orita$total_contacts, orita$total_contacts, orita$puta, orita$puta, orita$pia),
-      c(onet$total_contacts, onet$total_contacts, onet$puta, onet$puta, onet$pia)
+      # Size=5: small and large rows
+      build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "small",
+                ods5$total_contacts_small, ods5$puta_small, ods5$pia),
+      build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "large",
+                ods5$total_contacts_large, ods5$puta_large, ods5$pia),
+      # Size=2: small and large rows
+      build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "small",
+                ods2$total_contacts_small, ods2$puta_small, ods2$pia),
+      build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "large",
+                ods2$total_contacts_large, ods2$puta_large, ods2$pia),
+      # Growth: small and large rows
+      build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "small",
+                ogrowth$total_contacts_small, ogrowth$puta_small, ogrowth$pia),
+      build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "large",
+                ogrowth$total_contacts_large, ogrowth$puta_large, ogrowth$pia),
+      # Individual-based strategies: single row each (subnetwork = NA)
+      build_row('Random allocation', "-", orand$total_contacts, orand$puta, orand$pia),
+      build_row('RITA', "-", orita$total_contacts, orita$puta, orita$pia),
+      build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$puta, onet$pia)
     ) |> as.data.frame()
     
-    colnames(odf) <- c(
-      "Contacts_Small", "Contacts_Large",
-      "Total_PUTA", "PUTA/contact_small", "Median_small", "Low_small", "High_small",
-      "Total_PUTA_lg", "PUTA/contact_large", "Median_large", "Low_large", "High_large",
-      "PIA", "PIA_Low", "PIA_High"
-    )
-    rownames(odf) <- strategy_names
-    odf1 <- round(odf, 2)
+    # Convert numeric columns
+    num_cols <- c("Contacts", "Total_PUTA", "PUTA/contact", "Median", "Low", "High", "PIA", "PIA_Low", "PIA_High")
+    odf[num_cols] <- lapply(odf[num_cols], as.numeric)
+    odf1 <- odf
+    odf1[num_cols] <- lapply(odf1[num_cols], function(x) round(x, 2))
 
     counts_df <- data.frame(
-      Strategy = strategy_names,
+      Strategy = c(
+        paste0('Size=', cluster_size_5, ',D=', distance_threshold),
+        paste0('Size=', cluster_size_2, ',D=', distance_threshold),
+        paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
+        'Random allocation',
+        'RITA',
+        paste0('Network,partners>', network_degree_threshold)
+      ),
       Units = c(ods5$n_units, ods2$n_units, ogrowth$n_units, orand$n_units, orita$n_units, onet$n_units),
       Contacts_Small = c(ods5$total_contacts_small, ods2$total_contacts_small, ogrowth$total_contacts_small,
                          orand$total_contacts, orita$total_contacts, onet$total_contacts),
@@ -223,11 +241,9 @@ run_intervention_analysis <- function(
       # Generate timestamp for unique filenames
       timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
       
-      # Save summary table (wide format with Strategy as rownames)
-      summary_df <- cbind(Strategy = rownames(odf), odf)
-      rownames(summary_df) <- NULL
+      # Save summary table
       summary_path <- file.path(output_dir, paste0("summary_", timestamp, ".csv"))
-      write.csv(summary_df, summary_path, row.names = FALSE)
+      write.csv(odf, summary_path, row.names = FALSE)
       
       # Save counts table
       counts_path <- file.path(output_dir, paste0("counts_", timestamp, ".csv"))
