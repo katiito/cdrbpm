@@ -30,8 +30,8 @@ resolve_input_path <- function(file) {
 
 # Main function to run intervention analysis
 run_intervention_analysis <- function(
-  d_file = 'experiment1-N10000-D.csv',
-  g_file = 'experiment1-N10000-G.csv',
+  d_file = 'experiment1-N100000-gens7-D.csv',
+  g_file = 'experiment1-N100000-gens7-G.csv',
   seed = NULL,  # Default to random seed
   cluster_size_5 = 5,
   cluster_size_2 = 2,
@@ -64,9 +64,13 @@ run_intervention_analysis <- function(
     simids <- unique(Dall$simid)
     Ds <- split(Dall, Dall$simid)[simids]
     Gs <- split(Gall, Gall$simid)[simids]
+    cat("  Loaded", nrow(Dall), "D rows,", nrow(Gall), "G rows across", length(simids), "simulations\n")
 
     # Run interventions
-    cat("Running interventions...\n")
+    cat("Running interventions (6 strategies)...\n")
+    t_start <- Sys.time()
+
+    cat("  [1/6] Distance-size (size=", cluster_size_5, ", D=", distance_threshold, ")...", sep = "")
     ods5 <- tryCatch(
       distsize_intervention(
         Ds = Ds, Gs = Gs, Gall = Gall,
@@ -76,11 +80,14 @@ run_intervention_analysis <- function(
         intervention_rate = intervention_rate
       ),
       error = function(e) {
-        cat("Error in ods5:", e$message, "\n")
+        cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
              puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
       }
     )
+    cat(" done (", ods5$n_units, " units)\n", sep = "")
+
+    cat("  [2/6] Distance-size (size=", cluster_size_2, ", D=", distance_threshold, ")...", sep = "")
     ods2 <- tryCatch(
       distsize_intervention(
         Ds = Ds, Gs = Gs, Gall = Gall,
@@ -90,35 +97,14 @@ run_intervention_analysis <- function(
         intervention_rate = intervention_rate
       ),
       error = function(e) {
-        cat("Error in ods2:", e$message, "\n")
+        cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
              puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
       }
     )
-    orand <- tryCatch(
-      random_intervention(
-        Dall = Dall, Gall = Gall,
-        random_sample_size = random_sample_size,
-        intervention_rate = intervention_rate
-      ),
-      error = function(e) {
-        cat("Error in orand:", e$message, "\n")
-        list(propintervened = 0, n_units = 0,
-             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-      }
-    )
-    orita <- tryCatch(
-      rita_intervention(
-        Dall = Dall, Gall = Gall,
-        rita_window_months = rita_window_months,
-        intervention_rate = intervention_rate
-      ),
-      error = function(e) {
-        cat("Error in orita:", e$message, "\n")
-        list(propintervened = 0, n_units = 0,
-             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
-      }
-    )
+    cat(" done (", ods2$n_units, " units)\n", sep = "")
+
+    cat("  [3/6] Growth-rate (size=", cluster_size_5, ", W=", lookback_window_months, "mo, D=", growth_distance_threshold, ")...", sep = "")
     ogrowth <- tryCatch(
       growthrate_intervention(
         Ds = Ds, Gs = Gs, Gall = Gall,
@@ -129,11 +115,44 @@ run_intervention_analysis <- function(
         intervention_rate = intervention_rate
       ),
       error = function(e) {
-        cat("Error in ogrowth:", e$message, "\n")
+        cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
              puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
       }
     )
+    cat(" done (", ogrowth$n_units, " units)\n", sep = "")
+
+    cat("  [4/6] Random allocation (n=", random_sample_size, ")...", sep = "")
+    orand <- tryCatch(
+      random_intervention(
+        Dall = Dall, Gall = Gall,
+        random_sample_size = random_sample_size,
+        intervention_rate = intervention_rate
+      ),
+      error = function(e) {
+        cat(" ERROR:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+      }
+    )
+    cat(" done (", orand$n_units, " units)\n", sep = "")
+
+    cat("  [5/6] RITA (window=", rita_window_months, "mo)...", sep = "")
+    orita <- tryCatch(
+      rita_intervention(
+        Dall = Dall, Gall = Gall,
+        rita_window_months = rita_window_months,
+        intervention_rate = intervention_rate
+      ),
+      error = function(e) {
+        cat(" ERROR:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
+      }
+    )
+    cat(" done (", orita$n_units, " units)\n", sep = "")
+
+    cat("  [6/6] Network degree (threshold=", network_degree_threshold, ")...", sep = "")
     onet <- tryCatch(
       network_intervention(
         Dall = Dall, Gall = Gall,
@@ -141,11 +160,15 @@ run_intervention_analysis <- function(
         intervention_rate = intervention_rate
       ),
       error = function(e) {
-        cat("Error in onet:", e$message, "\n")
+        cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
              puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0), total_contacts = 0)
       }
     )
+    cat(" done (", onet$n_units, " units)\n", sep = "")
+
+    elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "secs"))
+    cat("All interventions completed in", round(elapsed, 1), "seconds\n\n")
 
     # Compile summary table
     odf <- rbind(
