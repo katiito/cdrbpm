@@ -883,16 +883,20 @@ growthrate_intervention <- function(
     IT <- if (is.finite(t_detect)) t_detect + rexp(1, rate = intervention_rate) else Inf
 
     # -------------------------------------------------------------------------
-    # Define cluster at IT: ONLY the cases in the trigger window
+    # Define cluster at IT: trigger window cases PLUS any additional members
+    # who join the cluster during the intervention delay
     # -------------------------------------------------------------------------
-    # For growth-rate, we only intervene on the recent k cases that triggered,
-    # not the entire historical cluster
+    # Include cluster members sequenced from trigger window start to IT
+    # This means: the k trigger cases + anyone sequenced during the delay
+    # But NOT historical cases from before the trigger window
     G1 <- data.frame()
     if (is.finite(IT) && !is.na(trigger_j)) {
-      # Get only the cases from the trigger window (indices j to i in Gtrig)
-      window_pids <- Gtrig$pid[trigger_j:trigger_i]
-      # Further filter to those sequenced before IT (in case of delay)
-      G1 <- Gcluster[Gcluster$pid %in% window_pids & Gcluster$timesequenced < IT, ]
+      # Get the start time of the trigger window
+      window_start_time <- t[trigger_j]
+      # Include all cluster members sequenced from window start to IT
+      G1 <- Gcluster[Gcluster$generation != lastgeneration & 
+                     Gcluster$timesequenced >= window_start_time & 
+                     Gcluster$timesequenced < IT, ]
     }
 
     # Compute contacts - both subnetwork assumptions
