@@ -43,7 +43,6 @@ run_intervention_analysis <- function(
   growth_distance_threshold = 0.1, # separate D for growth-based trigger
   intervention_rate = 1/90, # average 3 months to intervention
   show_table = TRUE,
-  show_debug = FALSE,
   output_dir = "intervention-results"  # if non-NULL, save results to this directory
 ) {
     # Seed
@@ -60,8 +59,8 @@ run_intervention_analysis <- function(
     Dall <- read.csv(resolve_input_path(d_file), stringsAs = FALSE)
     Gall <- read.csv(resolve_input_path(g_file), stringsAs = FALSE)
 
-    # Split by simid
-    simids <- unique(Dall$simid)
+    # Split by simid - use character keys for proper name-based subsetting
+    simids <- as.character(unique(Dall$simid))
     Ds <- split(Dall, Dall$simid)[simids]
     Gs <- split(Gall, Gall$simid)[simids]
     cat("  Loaded", nrow(Dall), "D rows,", nrow(Gall), "G rows across", length(simids), "simulations\n")
@@ -318,111 +317,31 @@ run_intervention_analysis <- function(
         print(knitr::kable(odf1))
         cat("\nSample sizes and totals (for context):\n")
         print(knitr::kable(counts_df))
-        if (show_debug) {
-          cat("\nDebug: Cluster-size-5 per-simulation details -> simid, nc, contacts_small, contacts_large, interventiontime, pia, puta\n")
-          if (!is.null(ods5$o) && nrow(ods5$o) > 0) {
-            debug_cols <- c("simid", "nc", "contacts_small", "contacts_large", "interventiontime", "pia", "puta")
-            odf1_5_view <- ods5$o[, debug_cols]
-            num_cols_all <- intersect(c("nc", "contacts_small", "contacts_large", "interventiontime", "pia", "puta"), colnames(odf1_5_view))
-            odf1_5_view[num_cols_all] <- lapply(odf1_5_view[num_cols_all], function(x) suppressWarnings(as.numeric(x)))
-            num_cols <- intersect(c("interventiontime", "pia", "puta", "contacts_small", "contacts_large"), colnames(odf1_5_view))
-            odf1_5_view[num_cols] <- lapply(odf1_5_view[num_cols], function(x) if (is.numeric(x)) round(x, 2) else x)
-            print(knitr::kable(odf1_5_view))
-            cat("\nDebug: Degree breakdown at IT for size-5 clusters\n")
-            for (i in seq_len(nrow(ods5$o))) {
-              row <- ods5$o[i, ]
-              sim_key <- as.character(row$simid)
-              IT <- as.numeric(row$interventiontime)
-              if (!is.finite(IT)) next
-              D <- Ds[[sim_key]]; G <- Gs[[sim_key]]
-              if (is.null(D) || is.null(G)) next
-              lastgeneration <- max(G$generation)
-              D1 <- D[D$distance <= distance_threshold, ]
-              keeppids <- "0"
-              addpids <- D1$recipient[D1$donor %in% keeppids]
-              while (length(addpids) > 0) {
-                keeppids <- union(addpids, keeppids)
-                addpids <- setdiff(D1$recipient[D1$donor %in% keeppids], keeppids)
-              }
-              G1 <- G[G$pid %in% keeppids, ]
-              G1 <- G1[G1$generation != lastgeneration & G1$timesequenced < IT, ]
-              if (nrow(G1) == 0) next
-              G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
-              n <- nrow(G1)
-              sum_deg <- sum(G1$degree)
-              excess <- pmax(G1$degree - (n - 1), 0)
-              tc_small <- n + sum(excess)
-              tc_large <- sum_deg - (n - 2)
-              cat(sprintf("simid=%s n=%d contacts_small=%.2f contacts_large=%.2f degrees=%s excess=%s\n",
-                          sim_key, n, tc_small, tc_large,
-                          paste(round(G1$degree, 2), collapse=","),
-                          paste(round(excess, 2), collapse=",")))
-            }
-          } else {
-            cat("(No size-5 clusters met criteria; odf1 is empty.)\n")
-          }
-        }
       } else {
-        cat("knitr package not available, showing table as dataframe\n")
         print(odf1)
         cat("\nSample sizes and totals (for context):\n")
         print(counts_df)
-        if (show_debug) {
-          cat("\nDebug: Cluster-size-5 per-simulation details -> simid, nc, contacts_small, contacts_large, interventiontime, pia, puta\n")
-          if (!is.null(ods5$o) && nrow(ods5$o) > 0) {
-            debug_cols <- c("simid", "nc", "contacts_small", "contacts_large", "interventiontime", "pia", "puta")
-            odf1_5_view <- ods5$o[, debug_cols]
-            num_cols_all <- intersect(c("nc", "contacts_small", "contacts_large", "interventiontime", "pia", "puta"), colnames(odf1_5_view))
-            odf1_5_view[num_cols_all] <- lapply(odf1_5_view[num_cols_all], function(x) suppressWarnings(as.numeric(x)))
-            num_cols <- intersect(c("interventiontime", "pia", "puta", "contacts_small", "contacts_large"), colnames(odf1_5_view))
-            odf1_5_view[num_cols] <- lapply(odf1_5_view[num_cols], function(x) if (is.numeric(x)) round(x, 2) else x)
-            print(odf1_5_view)
-            cat("\nDebug: Degree breakdown at IT for size-5 clusters\n")
-            for (i in seq_len(nrow(ods5$o))) {
-              row <- ods5$o[i, ]
-              sim_key <- as.character(row$simid)
-              IT <- as.numeric(row$interventiontime)
-              if (!is.finite(IT)) next
-              D <- Ds[[sim_key]]; G <- Gs[[sim_key]]
-              if (is.null(D) || is.null(G)) next
-              lastgeneration <- max(G$generation)
-              D1 <- D[D$distance <= distance_threshold, ]
-              keeppids <- "0"
-              addpids <- D1$recipient[D1$donor %in% keeppids]
-              while (length(addpids) > 0) {
-                keeppids <- union(addpids, keeppids)
-                addpids <- setdiff(D1$recipient[D1$donor %in% keeppids], keeppids)
-              }
-              G1 <- G[G$pid %in% keeppids, ]
-              G1 <- G1[G1$generation != lastgeneration & G1$timesequenced < IT, ]
-              if (nrow(G1) == 0) next
-              G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
-              n <- nrow(G1)
-              sum_deg <- sum(G1$degree)
-              excess <- pmax(G1$degree - (n - 1), 0)
-              tc_small <- n + sum(excess)
-              tc_large <- sum_deg - (n - 2)
-              cat(sprintf("simid=%s n=%d contacts_small=%.2f contacts_large=%.2f degrees=%s excess=%s\n",
-                          sim_key, n, tc_small, tc_large,
-                          paste(round(G1$degree, 2), collapse=","),
-                          paste(round(excess, 2), collapse=",")))
-            }
-          } else {
-            cat("(No size-5 clusters met criteria; odf1 is empty.)\n")
-          }
-        }
       }
     }
+    
+    # Return results invisibly for programmatic use
+    invisible(list(
+      summary = odf,
+      counts = counts_df,
+      details = list(
+        distsize5 = ods5,
+        distsize2 = ods2,
+        growth = ogrowth,
+        random = orand,
+        rita = orita,
+        network = onet
+      )
+    ))
   }
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 ###### ### ### ### ###  INTERVENTION FUNCTIONS ### ### ### ### ### ### 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-###### ### ### ### ###  INTERVENTION FUNCTIONS ### ### ### ### ### ### 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
 
 
