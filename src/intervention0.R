@@ -85,7 +85,7 @@ resolve_input_path <- function(file) {
 #' @param cluster_size_2 Cluster size threshold for strategy 2 (default: 2)
 #' @param distance_threshold Genetic distance threshold for clustering (default: 0.005)
 #' @param network_degree_threshold Minimum degree to trigger network intervention (default: 4)
-#' @param random_sample_size Number of random individuals to sample (default: 30)
+#' @param random_coverage Proportion of eligible population to randomly sample (default: 0.30 = 30%)
 #' @param rita_window_months Average RITA detection window in months (default: 6)
 #' @param lookback_window_months Growth-rate trigger window in months (default: 6)
 #' @param growth_distance_threshold Distance threshold for growth-based clustering (default: 0.1)
@@ -102,7 +102,7 @@ run_intervention_analysis <- function(
   cluster_size_2 = 2,
   distance_threshold = 0.005,
   network_degree_threshold = 4,
-  random_sample_size = 30,
+  random_coverage = 0.30,  # 30% of eligible population
   rita_window_months = 6, # average RITA detection window
   lookback_window_months = 6, # growth-rate trigger window
   growth_distance_threshold = 0.01, # separate D for growth-based trigger
@@ -135,6 +135,15 @@ run_intervention_analysis <- function(
     Ds <- split(Dall, Dall$simid)[simids]
     Gs <- split(Gall, Gall$simid)[simids]
     cat("  Loaded", nrow(Dall), "D rows,", nrow(Gall), "G rows across", length(simids), "simulations\n")
+
+    # -------------------------------------------------------------------------
+    # Calculate random sample size based on coverage of eligible population
+    # -------------------------------------------------------------------------
+    # Eligible population: generations 1 to (max-1), excluding seed and last gen
+    lastgen <- max(Gall$generation)
+    eligible_pop <- sum(Gall$generation > 0 & Gall$generation < lastgen)
+    random_sample_size <- round(random_coverage * eligible_pop)
+    cat("  Random sample size:", random_sample_size, "(", round(100*random_coverage), "% of", eligible_pop, "eligible)\n")
 
     # -------------------------------------------------------------------------
     # Run all six intervention strategies
@@ -198,7 +207,7 @@ run_intervention_analysis <- function(
     cat(" done (", ogrowth$n_units, " units)\n", sep = "")
 
     # Strategy 4: Random allocation (baseline comparator)
-    cat("  [4/6] Random allocation (n=", random_sample_size, ")...", sep = "")
+    cat("  [4/6] Random allocation (", round(100*random_coverage), "% coverage, n=", random_sample_size, ")...", sep = "")
     orand <- tryCatch(
       random_intervention(
         Dall = Dall, Gall = Gall,
@@ -285,7 +294,7 @@ run_intervention_analysis <- function(
       build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "large",
                 ogrowth$total_contacts_large, ogrowth$puta_large, ogrowth$pia),
       # Individual-based strategies: single row each (subnetwork = NA)
-      build_row('Random allocation', "-", orand$total_contacts, orand$puta, orand$pia),
+      build_row(paste0('Random,', round(100*random_coverage), '%'), "-", orand$total_contacts, orand$puta, orand$pia),
       build_row('RITA', "-", orita$total_contacts, orita$puta, orita$pia),
       build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$puta, onet$pia)
     ) |> as.data.frame()
@@ -302,7 +311,7 @@ run_intervention_analysis <- function(
         paste0('Size=', cluster_size_5, ',D=', distance_threshold),
         paste0('Size=', cluster_size_2, ',D=', distance_threshold),
         paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
-        'Random allocation',
+        paste0('Random,', round(100*random_coverage), '%'),
         'RITA',
         paste0('Network,partners>', network_degree_threshold)
       ),
