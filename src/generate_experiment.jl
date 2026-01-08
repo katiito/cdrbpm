@@ -18,18 +18,31 @@ end
 include("j0.jl")
 using CSV
 using DataFrames
+using Printf
 
 function generate_experiment(n_sims::Int;
     out_prefix::AbstractString = "experiment1",
     maxgenerations::Int = 5,
     initialcontact::Symbol = :G,
+    progress_every::Int = 1000,  # print progress every N sims; set to 0 to disable
 )
     @assert n_sims > 0 "n_sims must be positive"
     G_all = DataFrame()
     D_all = DataFrame()
 
+    println("Starting $n_sims simulations (maxgenerations=$maxgenerations, initialcontact=$initialcontact)...")
+    t_start = time()
+
     for i in 1:n_sims
         o = simbp(P; maxgenerations=maxgenerations, initialcontact=initialcontact)
+
+        # Progress reporting
+        if progress_every > 0 && (i % progress_every == 0 || i == n_sims)
+            elapsed = time() - t_start
+            rate = i / elapsed
+            eta = (n_sims - i) / rate
+            @printf("  [%5d / %d] %.1f sims/sec, elapsed %.1fs, ETA %.1fs\n", i, n_sims, rate, elapsed, eta)
+        end
         # Overwrite simid with human-readable sequential strings "1".."N"
         G_df = copy(o.G)
         D_df = copy(o.D)
@@ -54,6 +67,8 @@ function generate_experiment(n_sims::Int;
     CSV.write(g_path, G_all)
     CSV.write(d_path, D_all)
 
+    total_time = time() - t_start
+    println("\nDone in $(round(total_time; digits=1))s")
     println("Wrote: \n  ", g_path, " (", nrow(G_all), " rows)\n  ", d_path, " (", nrow(D_all), " rows)")
     return (; G=G_all, D=D_all, g_path, d_path)
 end

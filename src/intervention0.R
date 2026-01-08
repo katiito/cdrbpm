@@ -40,7 +40,7 @@ run_intervention_analysis <- function(
   network_degree_threshold = 4,
   random_sample_size = 30,
   rita_window_months = 6, # average RITA detection window
-  lookback_window_months = 36, # growth-rate trigger window
+  lookback_window_months = 6, # growth-rate trigger window
   growth_distance_threshold = 0.1, # separate D for growth-based trigger
   intervention_rate = 1/90, # average 3 months to intervention
   show_table = TRUE,
