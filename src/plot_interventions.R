@@ -279,7 +279,16 @@ plot_mechanism_analysis <- function(D, G,
   
   cat(sprintf("Analyzing %d simulations...\n", length(simids)))
   
-  for (simid in simids) {
+  progress_interval <- max(1, floor(length(simids) / 10))  # Report every 10%
+  
+  for (sim_idx in seq_along(simids)) {
+    simid <- simids[sim_idx]
+    
+    # Progress update
+    if (sim_idx %% progress_interval == 0 || sim_idx == length(simids)) {
+      cat(sprintf("  Progress: %d/%d (%.0f%%)\n", sim_idx, length(simids), 100 * sim_idx / length(simids)))
+    }
+    
     G1 <- G[G$simid == simid, ]
     D1 <- D[D$simid == simid, ]
     lastgen <- max(G1$generation)
@@ -561,12 +570,14 @@ plot_mechanism_analysis <- function(D, G,
             ))
           }
           
-          # Delay components
+          # Delay components (now correctly labeled)
           delay_results <- rbind(delay_results, data.frame(
-            component = c("Dx to Sequencing", "Seq to Trigger", "Analysis+Impl"),
+            component = c("Dx to Sequencing\n(sequencing delay)", 
+                          "Sequencing to Trigger\n(analysis delay)", 
+                          "Trigger to Intervention\n(implementation delay)"),
             delay = c(
               time_seq - time_dx,
-              IT - time_seq - analysis_delay - implementation_delay,
+              t[trigger_i] - time_seq,
               analysis_delay + implementation_delay
             )
           ))
@@ -863,7 +874,7 @@ plot_mechanism_analysis <- function(D, G,
       geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7, alpha = 0.8) +
       geom_errorbar(aes(ymin = mean_trans - se_trans, ymax = mean_trans + se_trans),
                     position = position_dodge(width = 0.8), width = 0.2, color = "gray30") +
-      scale_fill_manual(values = c("Population" = "gray60", "Growth cluster offspring" = "#4DAF4A")) +
+      scale_fill_manual(values = c("Population" = "gray70", "Growth cluster offspring" = "gray30")) +
       # Add ratio annotations
       geom_text(data = ratio_data[!is.na(ratio_data$ratio), ], 
                 aes(x = factor(generation), y = offspring_trans + 0.15, 
@@ -902,18 +913,15 @@ plot_mechanism_analysis <- function(D, G,
       )
     
     delay_summary$component <- factor(delay_summary$component, 
-                                      levels = c("Dx to Sequencing", "Seq to Trigger", "Analysis+Impl"))
+                                      levels = c("Dx to Sequencing\n(sequencing delay)", 
+                                                 "Sequencing to Trigger\n(analysis delay)", 
+                                                 "Trigger to Intervention\n(implementation delay)"))
   
-    p_delay <- ggplot(delay_summary, aes(x = component, y = mean_delay, fill = component)) +
-      geom_bar(stat = "identity", alpha = 0.8, width = 0.7) +
+    p_delay <- ggplot(delay_summary, aes(x = component, y = mean_delay)) +
+      geom_bar(stat = "identity", fill = "gray50", color = "black", width = 0.7) +
       geom_errorbar(aes(ymin = mean_delay - se_delay, ymax = mean_delay + se_delay),
-                    width = 0.2, color = "gray30") +
-      geom_text(aes(label = sprintf("%.0f d", mean_delay)), vjust = -0.5, size = 3.5) +
-      scale_fill_manual(values = c(
-        "Dx to Sequencing" = "#1f77b4",
-        "Seq to Trigger" = "#ff7f0e",
-        "Analysis+Impl" = "#2ca02c"
-      )) +
+                    width = 0.2, color = "black") +
+      geom_text(aes(label = sprintf("%.0f days", mean_delay)), vjust = -0.5, size = 3.5) +
       labs(
         x = "", 
         y = "Days",
@@ -925,7 +933,7 @@ plot_mechanism_analysis <- function(D, G,
         legend.position = "none",
         plot.title = element_text(face = "bold", size = 11),
         plot.subtitle = element_text(size = 9, color = "gray40"),
-        axis.text.x = element_text(angle = 15, hjust = 1)
+        axis.text.x = element_text(size = 9)
       )
   } else {
     p_delay <- ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No delay data available") +
