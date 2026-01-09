@@ -41,6 +41,9 @@ struct Infection
 	contacttype::Symbol # cause of infection
 	degree::Tuple{Int64,Int64,Float64}
 	generation::Int64
+	# Contact counts within windows before diagnosis (90 days, 180 days)
+	contacts_90d::Tuple{Int64,Int64,Int64}  # (F, G, H) contacts in 90 days before diagnosis
+	contacts_180d::Tuple{Int64,Int64,Int64} # (F, G, H) contacts in 180 days before diagnosis
 end
 
 
@@ -142,6 +145,19 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
 	R = 0 #cumulative transm 
 	diagnosedwithaids = false 
 
+	# Arrays to track partner gain timestamps for contact tracing windows
+	fgain_times = Float64[]  # timestamps of each new F partner
+	ggain_times = Float64[]  # timestamps of each new G partner
+	hcontact_times = Float64[]  # timestamps of each H contact event
+	
+	# Contact counts at diagnosis (computed in aff_diagnosis!)
+	fcontacts_90d = 0
+	gcontacts_90d = 0
+	hcontacts_90d = 0
+	fcontacts_180d = 0
+	gcontacts_180d = 0
+	hcontacts_180d = 0
+
 	Γchron = Gamma( p.shape_chron,  p.γ_chron )
 	gamhazard( t) =	pdf( Γchron, t ) / ( 1.0-cdf(Γchron, t ))
 
@@ -175,10 +191,12 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
 
 	function aff_gainf!(int)
 		int.u[1] += 1 
+		push!(fgain_times, int.t)
 	end
 
 	function aff_gaing!(int)
 		int.u[2] += 1
+		push!(ggain_times, int.t)
 	end
 
 	function aff_losef!(int)
@@ -211,6 +229,24 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
 			diagnosedwithaids = true 
 		end 
 		int.u[3] = DIAGNOSED
+		
+		# Compute contacts within windows before diagnosis
+		# Include initial partners (u₀) plus new partners gained in window
+		t_90 = int.t - 90.0
+		t_180 = int.t - 180.0
+		
+		# F contacts: initial partners + partners gained in window
+		# (initial partners are counted if they could still be present, i.e., diagnosis is within partnership duration)
+		fcontacts_90d = u₀[1] + count(t -> t >= t_90 && t <= int.t, fgain_times)
+		fcontacts_180d = u₀[1] + count(t -> t >= t_180 && t <= int.t, fgain_times)
+		
+		# G contacts: same logic
+		gcontacts_90d = u₀[2] + count(t -> t >= t_90 && t <= int.t, ggain_times)
+		gcontacts_180d = u₀[2] + count(t -> t >= t_180 && t <= int.t, ggain_times)
+		
+		# H contacts: all contact events in window
+		hcontacts_90d = count(t -> t >= t_90 && t <= int.t, hcontact_times)
+		hcontacts_180d = count(t -> t >= t_180 && t <= int.t, hcontact_times)
 	end
 
 	function aff_care!(int)
@@ -252,6 +288,12 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
 # @show (R, int.t,int.u, )
 	end
 	
+	# Track H contacts (one-off encounters) - occurs at rate hr (independent of transmission)
+	rate_hcontact(u, p, t) = hr
+	function aff_hcontact!(int)
+		push!(hcontact_times, int.t)
+	end
+	
 	j_gainf = ConstantRateJump( rate_gainf, aff_gainf!) 
 	j_gaing = ConstantRateJump( rate_gaing, aff_gaing!) 
 
@@ -267,6 +309,7 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
 	j_transmf = VariableRateJump( rate_transmf, aff_transmf!; lrate= lrate_transmf, urate =hrate_transmf, rateinterval= rint) # 
 	j_transmg = VariableRateJump( rate_transmg, aff_transmg!; lrate = lrate_transmg, urate =hrate_transmg, rateinterval= rint )
 	j_transmh = VariableRateJump( rate_transmh, aff_transmh!; lrate = lrate_transmh, urate = hrate_transmh, rateinterval = rint )
+	j_hcontact = ConstantRateJump( rate_hcontact, aff_hcontact! )  # track H contacts for contact tracing
 	
 	simgenprob0 = DiscreteProblem( u₀, tspan, p )
 	jumps = [ j_gainf
@@ -281,6 +324,7 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
 		, j_transmf
 		, j_transmg
 		, j_transmh 
+		, j_hcontact
 	]
 
 	# 
@@ -300,7 +344,7 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
 	# ]
 	
 	# jdep complete graph works, but is probably slower 
-	jdep = repeat( [collect( 1:12 )] , 12 ) # complete graph 
+	jdep = repeat( [collect( 1:13 )] , 13 ) # complete graph (13 jumps now with j_hcontact) 
 
 	simgenprob1 = JumpProblem( simgenprob0, Coevolve(), jumps...; dep_graph = jdep )
 	
@@ -334,6 +378,8 @@ function Infection(p ; pid = "0", tinf = 0.0, contacttype = :nothing
      		, contacttype
      		, (flinks,glinks,hr)
      		, isnothing(donor) ? 0 : donor.generation+1
+     		, (fcontacts_90d, gcontacts_90d, hcontacts_90d)
+     		, (fcontacts_180d, gcontacts_180d, hcontacts_180d)
      	);
 end
 
@@ -378,8 +424,9 @@ function simbp(p ;  maxgenerations::Int64 = 5, initialcontact=:G)
 		)
 		
 	dfargs1 = [ (u.pid, u.tsequenced, u.tdiagnosed, u.tinf, u.generation
-	, u.degree...) for u in G ]
-	Gdf = DataFrame( dfargs1, [:pid, :timesequenced, :timediagnosed, :timeinfected, :generation, :Fdegree, :Gdegree, :Hdegree ] )
+	, u.degree..., u.contacts_90d..., u.contacts_180d...) for u in G ]
+	Gdf = DataFrame( dfargs1, [:pid, :timesequenced, :timediagnosed, :timeinfected, :generation, :Fdegree, :Gdegree, :Hdegree, 
+		:Fcontacts_90d, :Gcontacts_90d, :Hcontacts_90d, :Fcontacts_180d, :Gcontacts_180d, :Hcontacts_180d ] )
 	
 	simid = UUIDs.uuid1() |> string 
 	H.simid .= simid 

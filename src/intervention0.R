@@ -85,6 +85,7 @@ resolve_input_path <- function(file) {
 #' @param cluster_size_2 Cluster size threshold for strategy 2 (default: 2)
 #' @param distance_threshold Genetic distance threshold for clustering (default: 0.005)
 #' @param network_degree_threshold Minimum degree to trigger network intervention (default: 4)
+#' @param partner_notification_window_months Lookback window for partner notification (default: 6 months; alternative: 3 months)
 #' @param random_coverage Proportion of eligible population to randomly sample (default: 0.30 = 30%)
 #' @param rita_window_months Average RITA detection window in months (default: 6)
 #' @param lookback_window_months Growth-rate trigger window in months (default: 6)
@@ -103,6 +104,7 @@ run_intervention_analysis <- function(
   cluster_size_2 = 2,
   distance_threshold = 0.005,
   network_degree_threshold = 4,
+  partner_notification_window_months = 6,  # 6 months (180d) or 3 months (90d) lookback for contact tracing
   random_coverage = 0.10,  # 10% of eligible population
   rita_window_months = 6, # average RITA detection window
   lookback_window_months = 6, # growth-rate trigger window
@@ -247,12 +249,13 @@ run_intervention_analysis <- function(
     cat(" done (", orita$n_units, " units)\n", sep = "")
 
     # Strategy 6: Network degree-based intervention
-    cat("  [6/6] Network degree (threshold=", network_degree_threshold, ")...", sep = "")
+    cat("  [6/6] Network degree (threshold=", network_degree_threshold, ", window=", partner_notification_window_months, "mo)...", sep = "")
     onet <- tryCatch(
       network_intervention(
         Dall = Dall, Gall = Gall,
         network_degree_threshold = network_degree_threshold,
-        implementation_delay_days = implementation_delay_days
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -1306,17 +1309,20 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
 #' This approach prioritizes "superspreaders" who may be more likely to
 #' transmit infection to many others.
 #'
-#' Degree calculation:
-#'   degree = Fdegree + Gdegree + Hdegree
-#'   (sum of long-term, casual, and one-time partnerships)
+#' Contact calculation uses the simulated contact counts within the specified
+#' partner notification window (90 days for 3 months, 180 days for 6 months):
+#'   contacts = Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd
+#'   where XX is 90 or 180 depending on partner_notification_window_months
 #'
 #' @param Dall Combined transmission data for all simulations
 #' @param Gall Combined individual data for all simulations
-#' @param network_degree_threshold Minimum degree to trigger intervention
+#' @param network_degree_threshold Minimum total contacts to trigger intervention
 #' @param implementation_delay_days Fixed delay (days) for intervention implementation
+#' @param partner_notification_window_months Lookback window: 3 or 6 months (default: 6)
 #'
 #' @return List with same structure as random_intervention
-network_intervention <- function(Dall, Gall, network_degree_threshold, implementation_delay_days)
+network_intervention <- function(Dall, Gall, network_degree_threshold, implementation_delay_days,
+                                  partner_notification_window_months = 6)
 {
   lastgeneration <- max(Gall$generation)
   
@@ -1327,11 +1333,17 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
   G <- Gall
   G$pid <- paste(sep = '.', G$pid, G$simid)
   
-  # Calculate total degree (sum of all partnership types)
-  G$degree <- with(G, Fdegree + Gdegree + Hdegree)
+  # Calculate total contacts based on partner notification window
+  # Use 90-day columns for 3-month window, 180-day columns for 6-month window
+  if (partner_notification_window_months == 3) {
+    G$total_contacts <- with(G, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+  } else {
+    # Default to 6 months (180 days)
+    G$total_contacts <- with(G, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+  }
   
-  # Filter to high-degree individuals in generations 2+ (excluding last)
-  G1 <- G[ (G$degree>=network_degree_threshold) & (G$generation > 0) & (G$generation < lastgeneration), ]
+  # Filter to high-contact individuals in generations 2+ (excluding last)
+  G1 <- G[ (G$total_contacts >= network_degree_threshold) & (G$generation > 0) & (G$generation < lastgeneration), ]
     
     if (nrow(G1) == 0) {
       return(list(
@@ -1348,7 +1360,7 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
     G1$IT <- G1$timediagnosed + implementation_delay_days
     
     # Process individual intervention outcomes
-    proc_indiv <- function(pid, IT, degree) {
+    proc_indiv <- function(pid, IT, total_contacts) {
       piapids <- D$recipient[D$donor == pid] |> 
         union(c(pid, D$donor[D$recipient == pid]))
       
@@ -1358,10 +1370,10 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
       G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       puta <- sum(G3$timediagnosed - IT)
       
-      c(pia, puta, degree + 1)
+      c(pia, puta, total_contacts + 1)  # +1 for the index case
     }
     
-    mapply(proc_indiv, G1$pid, G1$IT, G1$degree) -> o 
+    mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts) -> o 
     o <- as.data.frame(t(o))
     colnames(o) <- c('pia', 'puta', 'contacts')
     
