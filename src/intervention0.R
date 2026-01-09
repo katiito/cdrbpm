@@ -168,7 +168,8 @@ run_intervention_analysis <- function(
         distance_threshold = distance_threshold,
         cluster_size = cluster_size_5,
         analysis_delay_days = analysis_delay_days,
-        implementation_delay_days = implementation_delay_days
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -188,7 +189,8 @@ run_intervention_analysis <- function(
         distance_threshold = distance_threshold,
         cluster_size = cluster_size_2,
         analysis_delay_days = analysis_delay_days,
-        implementation_delay_days = implementation_delay_days
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -209,7 +211,8 @@ run_intervention_analysis <- function(
         cluster_size = cluster_size_5,
         lookback_window_months = lookback_window_months,
         analysis_delay_days = analysis_delay_days,
-        implementation_delay_days = implementation_delay_days
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -227,7 +230,8 @@ run_intervention_analysis <- function(
       random_intervention(
         Dall = Dall, Gall = Gall,
         random_sample_size = random_sample_size,
-        implementation_delay_days = implementation_delay_days
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -243,7 +247,8 @@ run_intervention_analysis <- function(
       rita_intervention(
         Dall = Dall, Gall = Gall,
         rita_window_months = rita_window_months,
-        implementation_delay_days = implementation_delay_days
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
@@ -556,7 +561,8 @@ proc_cluster <- function(
     distance_threshold,
     cluster_size, 
     analysis_delay_days,
-    implementation_delay_days
+    implementation_delay_days,
+    partner_notification_window_months = 6
 ) 
 {
   # Sort data by relevant time variables for proper temporal ordering
@@ -612,15 +618,19 @@ proc_cluster <- function(
   contacts_large <- 0
   
   if (nrow(G1) > 0) {
-    # Total degree = sum of F (long-term), G (casual), H (one-time) partnerships
-    G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
-    sum_degrees <- sum(G1$degree)
+    # Calculate total contacts based on partner notification window
+    if (partner_notification_window_months == 3) {
+      G1$total_contacts <- with(G1, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+    } else {
+      G1$total_contacts <- with(G1, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+    }
+    sum_degrees <- sum(G1$total_contacts)
     n <- nrow(G1)
     
     # Small/Dense subnetwork: cluster members are fully connected internally
-    # External contacts = degree minus connections to other cluster members
-    # excess = max(degree - (n-1), 0) for each member
-    excess <- pmax(G1$degree - (n - 1), 0)
+    # External contacts = total_contacts minus connections to other cluster members
+    # excess = max(total_contacts - (n-1), 0) for each member
+    excess <- pmax(G1$total_contacts - (n - 1), 0)
     sum_excess <- sum(excess)
     contacts_small <- n + sum_excess
     
@@ -680,13 +690,15 @@ proc_cluster <- function(
 #' @param cluster_size Number of cases to trigger intervention
 #' @param analysis_delay_days Fixed delay (days) for cluster analysis after detection
 #' @param implementation_delay_days Fixed delay (days) for intervention implementation
+#' @param partner_notification_window_months Lookback window: 3 or 6 months (default: 6)
 #'
 #' @return List with: o (detailed results), propintervened, n_units,
 #'         puta_small, puta_large, pia, total_contacts_small, total_contacts_large
 distsize_intervention <- function(
     Ds, Gs, Gall,
     distance_threshold, cluster_size, 
-    analysis_delay_days, implementation_delay_days
+    analysis_delay_days, implementation_delay_days,
+    partner_notification_window_months = 6
 )
 {
   # Process each simulation using proc_cluster
@@ -697,7 +709,8 @@ distsize_intervention <- function(
         distance_threshold = distance_threshold,
         cluster_size = cluster_size,
         analysis_delay_days = analysis_delay_days,
-        implementation_delay_days = implementation_delay_days
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
       )
     }, error = function(e) {
       # Return default values if processing fails
@@ -746,10 +759,15 @@ distsize_intervention <- function(
       G1 <- G[G$pid %in% keeppids, ]
       G1 <- G1[G1$generation != lastgeneration & G1$timesequenced < IT, ]
       if (nrow(G1) == 0) next
-      G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+      # Calculate total contacts based on partner notification window
+      if (partner_notification_window_months == 3) {
+        G1$total_contacts <- with(G1, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+      } else {
+        G1$total_contacts <- with(G1, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+      }
       n <- nrow(G1)
-      sum_deg <- sum(G1$degree)
-      excess <- pmax(G1$degree - (n - 1), 0)
+      sum_deg <- sum(G1$total_contacts)
+      excess <- pmax(G1$total_contacts - (n - 1), 0)
       sum_exc <- sum(excess)
       odf$nc[i] <- n
       odf$sum_degrees[i] <- sum_deg
@@ -863,13 +881,15 @@ distsize_intervention <- function(
 #' @param lookback_window_months Width of sliding window in months
 #' @param analysis_delay_days Fixed delay (days) for cluster analysis after detection
 #' @param implementation_delay_days Fixed delay (days) for intervention implementation
+#' @param partner_notification_window_months Lookback window for contacts: 3 or 6 months (default: 6)
 #'
 #' @return List with same structure as distsize_intervention
 growthrate_intervention <- function(
   Ds, Gs, Gall,
   growth_distance_threshold, cluster_size,
   lookback_window_months = 3,
-  analysis_delay_days, implementation_delay_days
+  analysis_delay_days, implementation_delay_days,
+  partner_notification_window_months = 6
 )
 {
   # Convert window to days
@@ -964,10 +984,15 @@ growthrate_intervention <- function(
     contacts_small <- 0
     contacts_large <- 0
     if (nrow(G1) > 0 && is.finite(IT)) {
-      G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+      # Calculate total contacts based on partner notification window
+      if (partner_notification_window_months == 3) {
+        G1$total_contacts <- with(G1, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+      } else {
+        G1$total_contacts <- with(G1, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+      }
       n1 <- nrow(G1)
-      sum_degrees <- sum(G1$degree)
-      excess <- pmax(G1$degree - (n1 - 1), 0)
+      sum_degrees <- sum(G1$total_contacts)
+      excess <- pmax(G1$total_contacts - (n1 - 1), 0)
       sum_excess <- sum(excess)
       contacts_small <- n1 + sum_excess
       contacts_large <- sum_degrees - (n1 - 2)
@@ -1109,10 +1134,12 @@ growthrate_intervention <- function(
 #' @param Gall Combined individual data for all simulations
 #' @param random_sample_size Number of individuals to randomly select
 #' @param implementation_delay_days Fixed delay (days) for intervention implementation
+#' @param partner_notification_window_months Lookback window: 3 or 6 months (default: 6)
 #'
 #' @return List with: o (detailed results), propintervened (NA for random),
 #'         n_units, puta, pia, total_contacts
-random_intervention <- function(Dall, Gall, random_sample_size, implementation_delay_days)
+random_intervention <- function(Dall, Gall, random_sample_size, implementation_delay_days,
+                                partner_notification_window_months = 6)
 {
   lastgeneration <- max( Gall$generation )
   
@@ -1134,8 +1161,12 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
     sample_size <- min(random_sample_size, nrow(G1))
     G1 <- G1 |> dplyr::slice_sample(n = sample_size)
     
-    # Total degree = F + G + H partnerships
-    G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+    # Calculate total contacts based on partner notification window
+    if (partner_notification_window_months == 3) {
+      G1$total_contacts <- with(G1, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+    } else {
+      G1$total_contacts <- with(G1, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+    }
     
     # Make PIDs unique across simulations by appending simid
     G1$pid <- paste(sep='.', G1$pid, G1$simid )
@@ -1147,7 +1178,7 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
     G1$IT <- G1$timediagnosed + implementation_delay_days
     
     # Process individual intervention outcomes
-    proc_indiv <- function(pid, IT, degree) {
+    proc_indiv <- function(pid, IT, total_contacts) {
       # Find all contacts: recipients (transmitted to), self, donors (transmitted from)
       piapids <- D$recipient[ D$donor == pid] |> 
         union( c( pid, D$donor[D$recipient==pid] )) 
@@ -1158,11 +1189,11 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
       G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       puta <- sum( G3$timediagnosed - IT )
       
-      # Contacts = degree + 1 (self)
-      c( pia, puta, degree + 1 )
+      # Contacts = total_contacts + 1 (self)
+      c( pia, puta, total_contacts + 1 )
     }
     
-    mapply(proc_indiv, G1$pid, G1$IT, G1$degree ) -> o 
+    mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts ) -> o 
     o <- as.data.frame( t( o ) )
     colnames(o) <- c('pia', 'puta', 'contacts' )
     
@@ -1213,9 +1244,11 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
 #' @param Gall Combined individual data for all simulations
 #' @param rita_window_months Average RITA detection window in months
 #' @param implementation_delay_days Fixed delay (days) for intervention implementation
+#' @param partner_notification_window_months Lookback window: 3 or 6 months (default: 6)
 #'
 #' @return List with same structure as random_intervention
-rita_intervention <- function(Dall, Gall, rita_window_months, implementation_delay_days)
+rita_intervention <- function(Dall, Gall, rita_window_months, implementation_delay_days,
+                              partner_notification_window_months = 6)
 {
   lastgeneration <- max( Gall$generation )
   
@@ -1237,8 +1270,12 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
       ))
     }
     
-    # Total degree for RITA-positive individuals
-    G1$degree <- with(G1, Fdegree + Gdegree + Hdegree)
+    # Calculate total contacts based on partner notification window
+    if (partner_notification_window_months == 3) {
+      G1$total_contacts <- with(G1, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+    } else {
+      G1$total_contacts <- with(G1, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+    }
     
     # Make PIDs unique across simulations
     G1$pid <- paste(sep = '.', G1$pid, G1$simid)
@@ -1250,7 +1287,7 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
     G1$IT <- G1$timediagnosed + implementation_delay_days
     
     # Process individual intervention outcomes
-    proc_indiv <- function(pid, IT, degree) {
+    proc_indiv <- function(pid, IT, total_contacts) {
       piapids <- D$recipient[D$donor == pid] |> 
         union(c(pid, D$donor[D$recipient == pid]))
       
@@ -1260,13 +1297,13 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
       G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       puta <- sum(G3$timediagnosed - IT)
       
-      c(pia, puta, degree + 1)
+      c(pia, puta, total_contacts + 1)
     }
     
     # Process all RITA-positive cases
     results <- matrix(nrow = nrow(G1), ncol = 3)
     for (i in seq_len(nrow(G1))) {
-      results[i, ] <- proc_indiv(G1$pid[i], G1$IT[i], G1$degree[i])
+      results[i, ] <- proc_indiv(G1$pid[i], G1$IT[i], G1$total_contacts[i])
     }
     
     o <- as.data.frame(results)
@@ -1418,34 +1455,18 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
 # Source the plotting functions
 source("src/plot_interventions.R")
 
-# Load data
-Dall <- read.csv("ms/experiment1-N10000-gens7-D.csv")
-Gall <- read.csv("ms/experiment1-N10000-gens7-G.csv")
-
 # Run interventions with 6-month partner notification window
 cat("Running interventions...\n")
-results <- run_interventions(Dall, Gall, partner_notification_window_months = 6)
+results <- run_intervention_analysis(
+  d_file = "src/experiment1-N10000-gens7-D.csv",
+  g_file = "src/experiment1-N10000-gens7-G.csv",
+  partner_notification_window_months = 6
+)
 
-# Print summary
-cat("\nIntervention Summary:\n")
-print(results$summary)
-
-# Generate and save plots
+# Generate and save violin plots
 cat("\nGenerating efficiency distribution plots...\n")
-
-# Density plots
-p_density <- plot_efficiency_distributions(results, plot_type = "density")
-ggsave("ms/efficiency_distributions_density.pdf", p_density, width = 12, height = 10)
-cat("Saved: ms/efficiency_distributions_density.pdf\n")
-
-# Violin plots
 p_violin <- plot_efficiency_distributions(results, plot_type = "violin")
-ggsave("ms/efficiency_distributions_violin.pdf", p_violin, width = 12, height = 10)
-cat("Saved: ms/efficiency_distributions_violin.pdf\n")
-
-# Boxplots
-p_boxplot <- plot_efficiency_distributions(results, plot_type = "boxplot")
-ggsave("ms/efficiency_distributions_boxplot.pdf", p_boxplot, width = 12, height = 10)
-cat("Saved: ms/efficiency_distributions_boxplot.pdf\n")
+ggsave("src/efficiency_distributions_violin.pdf", p_violin, width = 12, height = 10)
+cat("Saved: src/efficiency_distributions_violin.pdf\n")
 
 cat("\nDone!\n")

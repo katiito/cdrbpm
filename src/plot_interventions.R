@@ -47,8 +47,8 @@ plot_efficiency_distributions <- function(results,
       
       o <- details[[sname]]$o
       
-      # For network intervention, there's only one contacts column
-      if (sname == "network") {
+      # For individual-based interventions (network, random, rita), there's only one contacts column
+      if (sname %in% c("network", "random", "rita")) {
         if (!"contacts" %in% names(o)) return(NULL)
         data.frame(
           strategy = slabel,
@@ -58,7 +58,7 @@ plot_efficiency_distributions <- function(results,
           contacts_large = o$contacts
         )
       } else {
-        # For cluster-based strategies
+        # For cluster-based strategies (distsize5, distsize2, growth)
         if (!all(c("puta", "pia", "contacts_small", "contacts_large") %in% names(o))) return(NULL)
         data.frame(
           strategy = slabel,
