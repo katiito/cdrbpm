@@ -766,9 +766,9 @@ plot_mechanism_analysis <- function(D, G,
       scale_fill_manual(values = strategy_colors) +
       labs(
         x = "", 
-        y = "% of transmissions remaining",
-        title = "B. RITA intervenes early in transmission career",
-        subtitle = "Among transmitters: % of transmissions after intervention"
+        y = "% of transmissions preventable",
+        title = "B. RITA intervenes early in transmission",
+        subtitle = "Among transmitters: % of transmissions averted by intervention"
       ) +
       theme_minimal() +
       theme(
@@ -938,7 +938,7 @@ plot_mechanism_analysis <- function(D, G,
   
   combined <- (p_donor + p_timing) / (p_trans + p_surv) / (p_delay + plot_spacer()) +
     plot_annotation(
-      title = "Mechanism Analysis: Why Strategies Differ in Effectiveness",
+      title = "Mechanism Analysis: Why Strategies Differ in Efficiency",
       theme = theme(plot.title = element_text(face = "bold", size = 14))
     )
   
