@@ -18,15 +18,14 @@
 #' 
 #' Creates 4 plots showing PUTA and PIA efficiency distributions under small 
 #' and large subnetwork assumptions for all 6 intervention strategies.
+#' Uses violin plots with pseudo-log scale to handle outliers.
+#' Strategies are displayed as rows (horizontal orientation).
 #' 
 #' @param results The output from run_interventions()
-#' @param plot_type Either "density" for smoothed density plots, "violin" for 
-#'   violin plots, or "boxplot" for box plots
 #' @param title_prefix Optional prefix for plot titles
 #' @return A combined ggplot object with 4 panels
 #' 
 plot_efficiency_distributions <- function(results, 
-                                          plot_type = "density",
                                           title_prefix = "") {
   require(ggplot2)
   require(patchwork)
@@ -89,8 +88,8 @@ plot_efficiency_distributions <- function(results,
   df <- df[is.finite(df$puta_eff_small) & is.finite(df$puta_eff_large) &
            is.finite(df$pia_eff_small) & is.finite(df$pia_eff_large), ]
   
-  # Set factor levels for ordering
-  df$strategy <- factor(df$strategy, levels = strategy_labels)
+  # Set factor levels for ordering (reversed so top-to-bottom matches desired order)
+  df$strategy <- factor(df$strategy, levels = rev(strategy_labels))
   
   # Define color palette
   strategy_colors <- c(
@@ -102,116 +101,80 @@ plot_efficiency_distributions <- function(results,
     "Network" = "#A65628"
   )
   
-  # Create plots based on plot_type
-  if (plot_type == "density") {
-    p1 <- ggplot(df, aes(x = puta_eff_small, fill = strategy, color = strategy)) +
-      geom_density(alpha = 0.3) +
-      labs(x = "PUTA per contact", y = "Density",
-           title = paste0(title_prefix, "PUTA Efficiency (Small Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      scale_color_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    p2 <- ggplot(df, aes(x = puta_eff_large, fill = strategy, color = strategy)) +
-      geom_density(alpha = 0.3) +
-      labs(x = "PUTA per contact", y = "Density",
-           title = paste0(title_prefix, "PUTA Efficiency (Large Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      scale_color_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    p3 <- ggplot(df, aes(x = pia_eff_small, fill = strategy, color = strategy)) +
-      geom_density(alpha = 0.3) +
-      labs(x = "PIA per contact", y = "Density",
-           title = paste0(title_prefix, "PIA Efficiency (Small Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      scale_color_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    p4 <- ggplot(df, aes(x = pia_eff_large, fill = strategy, color = strategy)) +
-      geom_density(alpha = 0.3) +
-      labs(x = "PIA per contact", y = "Density",
-           title = paste0(title_prefix, "PIA Efficiency (Large Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      scale_color_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-  } else if (plot_type == "violin") {
-    p1 <- ggplot(df, aes(x = strategy, y = puta_eff_small, fill = strategy)) +
-      geom_violin(alpha = 0.7) +
-      geom_boxplot(width = 0.1, fill = "white", alpha = 0.8) +
-      labs(x = "", y = "PUTA per contact",
-           title = paste0(title_prefix, "PUTA Efficiency (Small Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    p2 <- ggplot(df, aes(x = strategy, y = puta_eff_large, fill = strategy)) +
-      geom_violin(alpha = 0.7) +
-      geom_boxplot(width = 0.1, fill = "white", alpha = 0.8) +
-      labs(x = "", y = "PUTA per contact",
-           title = paste0(title_prefix, "PUTA Efficiency (Large Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    p3 <- ggplot(df, aes(x = strategy, y = pia_eff_small, fill = strategy)) +
-      geom_violin(alpha = 0.7) +
-      geom_boxplot(width = 0.1, fill = "white", alpha = 0.8) +
-      labs(x = "", y = "PIA per contact",
-           title = paste0(title_prefix, "PIA Efficiency (Small Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    p4 <- ggplot(df, aes(x = strategy, y = pia_eff_large, fill = strategy)) +
-      geom_violin(alpha = 0.7) +
-      geom_boxplot(width = 0.1, fill = "white", alpha = 0.8) +
-      labs(x = "", y = "PIA per contact",
-           title = paste0(title_prefix, "PIA Efficiency (Large Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-    
-  } else if (plot_type == "boxplot") {
-    p1 <- ggplot(df, aes(x = strategy, y = puta_eff_small, fill = strategy)) +
-      geom_boxplot(alpha = 0.7) +
-      labs(x = "", y = "PUTA per contact",
-           title = paste0(title_prefix, "PUTA Efficiency (Small Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    p2 <- ggplot(df, aes(x = strategy, y = puta_eff_large, fill = strategy)) +
-      geom_boxplot(alpha = 0.7) +
-      labs(x = "", y = "PUTA per contact",
-           title = paste0(title_prefix, "PUTA Efficiency (Large Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    p3 <- ggplot(df, aes(x = strategy, y = pia_eff_small, fill = strategy)) +
-      geom_boxplot(alpha = 0.7) +
-      labs(x = "", y = "PIA per contact",
-           title = paste0(title_prefix, "PIA Efficiency (Small Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    p4 <- ggplot(df, aes(x = strategy, y = pia_eff_large, fill = strategy)) +
-      geom_boxplot(alpha = 0.7) +
-      labs(x = "", y = "PIA per contact",
-           title = paste0(title_prefix, "PIA Efficiency (Large Subnetwork)")) +
-      scale_fill_manual(values = strategy_colors) +
-      theme_minimal() +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-  }
+  # Improved pseudo-log transformation using asinh for smoother behavior near zero
+  # asinh(x) ≈ x for small x, and ≈ sign(x)*log(2|x|) for large |x|
+  # Scale factor adjusts the transition point
+  scale_factor <- 1  # Values < 1 are nearly linear, values > 1 are compressed
+  pseudo_log_trans <- scales::trans_new(
+    name = "pseudo_log",
+    transform = function(x) asinh(x * scale_factor) / scale_factor,
+    inverse = function(x) sinh(x * scale_factor) / scale_factor
+  )
   
-  # Combine plots
+  # Common theme for horizontal violin plots
+  common_theme <- theme_minimal() +
+    theme(
+      legend.position = "none",
+      axis.text.y = element_text(size = 10),
+      axis.title.x = element_text(size = 10),
+      plot.title = element_text(size = 11, face = "bold")
+    )
+  
+  # PUTA plots with pseudo-log scale (horizontal orientation)
+  p1 <- ggplot(df, aes(x = strategy, y = puta_eff_small, fill = strategy)) +
+    geom_violin(alpha = 0.7, scale = "width") +
+    scale_y_continuous(
+      trans = pseudo_log_trans,
+      breaks = c(0, 0.5, 1, 2, 5, 10),
+      labels = c("0", "0.5", "1", "2", "5", "10")
+    ) +
+    coord_flip() +
+    labs(y = "PUTA per contact", x = "",
+         title = paste0(title_prefix, "PUTA (Small Subnetwork)")) +
+    scale_fill_manual(values = strategy_colors) +
+    common_theme
+  
+  p2 <- ggplot(df, aes(x = strategy, y = puta_eff_large, fill = strategy)) +
+    geom_violin(alpha = 0.7, scale = "width") +
+    scale_y_continuous(
+      trans = pseudo_log_trans,
+      breaks = c(0, 0.5, 1, 2, 5, 10),
+      labels = c("0", "0.5", "1", "2", "5", "10")
+    ) +
+    coord_flip() +
+    labs(y = "PUTA per contact", x = "",
+         title = paste0(title_prefix, "PUTA (Large Subnetwork)")) +
+    scale_fill_manual(values = strategy_colors) +
+    common_theme
+  
+  # PIA plots with pseudo-log scale (horizontal orientation)
+  p3 <- ggplot(df, aes(x = strategy, y = pia_eff_small, fill = strategy)) +
+    geom_violin(alpha = 0.7, scale = "width") +
+    scale_y_continuous(
+      trans = pseudo_log_trans,
+      breaks = c(0, 1, 5, 10, 20, 50, 100),
+      labels = c("0", "1", "5", "10", "20", "50", "100")
+    ) +
+    coord_flip() +
+    labs(y = "PIA per contact", x = "",
+         title = paste0(title_prefix, "PIA (Small Subnetwork)")) +
+    scale_fill_manual(values = strategy_colors) +
+    common_theme
+  
+  p4 <- ggplot(df, aes(x = strategy, y = pia_eff_large, fill = strategy)) +
+    geom_violin(alpha = 0.7, scale = "width") +
+    scale_y_continuous(
+      trans = pseudo_log_trans,
+      breaks = c(0, 1, 5, 10, 20, 50, 100),
+      labels = c("0", "1", "5", "10", "20", "50", "100")
+    ) +
+    coord_flip() +
+    labs(y = "PIA per contact", x = "",
+         title = paste0(title_prefix, "PIA (Large Subnetwork)")) +
+    scale_fill_manual(values = strategy_colors) +
+    common_theme
+  
+  # Combine plots: 2x2 grid
   (p1 + p2) / (p3 + p4) + 
     plot_annotation(title = "Intervention Efficiency Distributions")
 }

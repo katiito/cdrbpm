@@ -1465,7 +1465,7 @@ results <- run_intervention_analysis(
 
 # Generate and save violin plots
 cat("\nGenerating efficiency distribution plots...\n")
-p_violin <- plot_efficiency_distributions(results, plot_type = "violin")
+p_violin <- plot_efficiency_distributions(results)
 ggsave("src/efficiency_distributions_violin.pdf", p_violin, width = 12, height = 10)
 cat("Saved: src/efficiency_distributions_violin.pdf\n")
 
