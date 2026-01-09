@@ -193,3 +193,83 @@ Notes:
 - Filenames now include both the number of simulations (N) and the number of generations (gens), e.g., `experiment1-N100-gens5-*.csv`. Update any downstream scripts to point at the new names.
 - You can switch the initial contact type by passing `initialcontact = :G` (default), `:F`, or `:H` to `generate_experiment(...)`.
 - Threading is optional; if you want to enable threads for future parallel runs, you can prefix commands with `JULIA_NUM_THREADS=auto` (the current scripts themselves do not require it).
+
+---
+
+## Plotting & Analysis Functions
+
+### Source Files
+
+- **`src/intervention0.R`** – Core intervention analysis functions that compute PUTA, PIA, and efficiency metrics for each strategy
+- **`src/plot_interventions.R`** – Visualization functions for intervention results
+
+### Running the Mechanism Analysis
+
+The mechanism analysis figure explains *why* different intervention strategies have different effectiveness. To generate it:
+
+```r
+source("src/plot_interventions.R")
+run_mechanism_analysis(
+  D_path = "src/experiment1-N10000-gens7-D.csv",
+  G_path = "src/experiment1-N10000-gens7-G.csv",
+  save_path = "intervention-results/mechanism_analysis.png",
+  n_sims = NULL  # Use all simulations (NULL) or specify a number for faster testing
+)
+```
+
+**Note:** Running with all 10,000 simulations takes several minutes. Progress updates are printed every 10%.
+
+### Mechanism Analysis Figure (5 Panels)
+
+The figure `intervention-results/mechanism_analysis.png` contains:
+
+**Panel A: Targeting active transmission chains**
+- Shows % of intervention targets whose donor is still undiagnosed at intervention time
+- Higher % = strategy catches people in active transmission chains
+- RITA performs best because recently-infected people are more likely to have undiagnosed donors
+
+**Panel B: RITA intervenes early in transmission**
+- Among people who transmitted, shows % of transmissions that would be prevented by intervention
+- Higher % = intervention happens earlier in transmission career
+- RITA catches people before they've done most of their transmitting
+
+**Panel C: Growth clusters identify higher transmitters**
+- Mean number of transmissions per intervention target
+- Growth cluster members have higher transmission counts than random population
+- This is due to survivorship bias (Panel D), not inherent risk
+
+**Panel D: Survivorship bias in growth clusters**
+- Compares transmission rates of growth cluster offspring vs general population by generation
+- Key insight: Enrichment is ~2x in generation 1, ~1.7x in generation 2, but disappears by generations 3-4
+- This demonstrates that growth clusters identify "lucky" epidemic branches, not inherently high-risk subpopulations
+
+**Panel E: Growth cluster delay components**
+- Breaks down the time from diagnosis to intervention for growth cluster strategy:
+  - **Dx to Sequencing** (sequencing delay): Time from diagnosis to sequence availability
+  - **Sequencing to Trigger** (analysis delay): Time from sequencing until growth trigger condition met
+  - **Trigger to Intervention** (implementation delay): Fixed delay after trigger (28 days = 14 analysis + 14 implementation)
+
+### Parameters
+
+The mechanism analysis uses parameters matching `intervention0.R`:
+- `implementation_delay_days = 14`
+- `analysis_delay_days = 14`
+- `rita_window_months = 6` (exponential distribution with mean 180 days)
+- `distance_threshold_growth = 0.01` (for growth clusters)
+- `distance_threshold_distsize = 0.005` (for size-based clusters)
+- `lookback_window_months = 6` (for growth trigger)
+
+### Efficiency Distributions
+
+To plot efficiency distributions across strategies:
+
+```r
+source("src/intervention0.R")
+source("src/plot_interventions.R")
+
+# Run interventions first
+results <- run_interventions(Dall, Gall)
+
+# Plot efficiency distributions
+plot_efficiency_distributions(results, plot_type = "violin")  # or "density", "boxplot"
+```
