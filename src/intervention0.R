@@ -40,6 +40,11 @@
 
 library(glue)
 library(ggplot2)
+library(rlang)  # For .data pronoun in ggplot2 aes()
+
+# Suppress R CMD check notes for ggplot2 non-standard evaluation
+utils::globalVariables(c("nc", "strategy", "puta_eff_small", "puta_eff_large", 
+                         "pia_eff_small", "pia_eff_large"))
 
 # -----------------------------------------------------------------------------
 # Path resolution using the 'here' package (required)
@@ -463,9 +468,9 @@ run_intervention_analysis <- function(
         )
         
         if (nrow(plot_df) > 0) {
-          p <- ggplot(plot_df, aes(x = nc, fill = strategy)) +
+          p <- ggplot(plot_df, aes(x = .data$nc, fill = .data$strategy)) +
             geom_histogram(binwidth = 1, color = 'black', alpha = 0.7) +
-            facet_wrap(~strategy, scales = 'free_y', ncol = 1) +
+            facet_wrap(~ .data$strategy, scales = 'free_y', ncol = 1) +
             labs(
               title = 'Distribution of Cluster Sizes at Intervention Time',
               x = 'Number of cluster members (nc) at intervention',
@@ -917,8 +922,7 @@ growthrate_intervention <- function(
     # Find earliest time when k cases are sequenced within lookback_days
     j <- 1
     t_detect <- Inf
-    trigger_j <- NA  # Store window indices for later
-    trigger_i <- NA
+    trigger_j <- NA  # Store window index for later
     for (i in seq_len(n)) {
       # Advance left pointer while window exceeds lookback_days
       while (j <= i && (t[i] - t[j]) > lookback_days) {
@@ -927,8 +931,7 @@ growthrate_intervention <- function(
       # Check if window contains cluster_size sequenced cases
       if ((i - j + 1) >= cluster_size) {
         t_detect <- t[i]  # Trigger at the k-th sequencing time in window
-        trigger_j <- j    # Store window boundaries
-        trigger_i <- i
+        trigger_j <- j    # Store window boundary
         break
       }
     }
