@@ -253,6 +253,9 @@ plot_mechanism_analysis <- function(D, G,
     "Network" = "#A65628"
   )
   
+  # Consistent ordering for all plots
+  strategy_order <- c("RITA", "Growth", "Size>=5", "Random", "Network")
+  
   # Parameters - matching those used in intervention0.R analysis
   # (distance thresholds come from function parameters)
   implementation_delay <- 14        # implementation_delay_days
@@ -711,7 +714,7 @@ plot_mechanism_analysis <- function(D, G,
         .groups = "drop"
       )
     
-    donor_pct$strategy <- factor(donor_pct$strategy, levels = c("RITA", "Growth", "Size>=5", "Random", "Network"))
+    donor_pct$strategy <- factor(donor_pct$strategy, levels = strategy_order)
     
     p_donor <- ggplot(donor_pct, aes(x = strategy, y = pct_undiag_donor, fill = strategy)) +
       geom_bar(stat = "identity", alpha = 0.8, width = 0.7) +
@@ -752,7 +755,7 @@ plot_mechanism_analysis <- function(D, G,
       )
     
     timing_summary$strategy <- factor(timing_summary$strategy, 
-                                      levels = c("RITA", "Growth", "Size>=5", "Random", "Network"))
+                                      levels = strategy_order)
     
     p_timing <- ggplot(timing_summary, aes(x = strategy, y = mean_frac_remaining, fill = strategy)) +
       geom_bar(stat = "identity", alpha = 0.8, width = 0.7) +
@@ -796,7 +799,7 @@ plot_mechanism_analysis <- function(D, G,
       )
     
     trans_summary$strategy <- factor(trans_summary$strategy, 
-                                     levels = c("Growth", "Size>=5", "RITA", "Random", "Network"))
+                                     levels = strategy_order)
     
     p_trans <- ggplot(trans_summary, aes(x = strategy, y = mean_trans, fill = strategy)) +
       geom_bar(stat = "identity", alpha = 0.8, width = 0.7) +
@@ -975,6 +978,5 @@ run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv"
     ggsave(save_path, p, width = width, height = height, dpi = 300)
   }
   
-  print(p)
   return(invisible(p))
 }
