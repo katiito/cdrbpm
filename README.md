@@ -1,3 +1,41 @@
+# Intervention Analysis for HIV Cluster Detection Strategies
+
+## Quick Start
+
+```r
+# Load the pipeline
+source("src/run_analysis.R")
+
+# Option 1: Run everything fresh (~2 min interventions + ~5 min mechanism analysis)
+run_full_analysis()
+
+# Option 2: Use cached results (fast - only regenerates plots)
+run_full_analysis(use_cached = TRUE)
+
+# Option 3: Skip mechanism analysis (fastest)
+run_full_analysis(use_cached = TRUE, run_mechanism = FALSE)
+
+# Option 4: Just regenerate plots from most recent saved results
+generate_plots_from_cache()
+```
+
+## Output Files
+
+| Output | Location |
+|--------|----------|
+| **PUTA efficiency violin plot** | `intervention_plots/efficiency_distributions_violin.pdf` |
+| **Mechanism analysis plot** | `intervention_plots/mechanism_analysis.png` |
+| Cluster size histograms | `intervention_plots/cluster_sizes_*.png` |
+| Intervention metrics (CSV) | `intervention-results/*.csv` |
+
+## Notes
+
+- For mechanism analysis, use `n_sims = NULL` (default) to include all simulations
+- With smaller `n_sims`, growth cluster data may be sparse (~0.14% of simulations trigger)
+- Cached results load from the most recent files in `intervention-results/`
+
+---
+
 # Intervention model – functional changes (New vs Old)
 
 ---
