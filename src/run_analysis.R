@@ -57,9 +57,8 @@ find_most_recent <- function(pattern, dir = here::here("intervention-results")) 
 load_cached_results <- function() {
   cat("Looking for cached results...\n")
   
-  # Find most recent files
+  # Find most recent counts file to get the timestamp
   counts_file <- find_most_recent("^counts_")
-  details_file <- find_most_recent("^details_all_clusters_")
   
   if (is.null(counts_file)) {
     stop("No cached results found. Run with use_cached = FALSE first.")
@@ -73,31 +72,34 @@ load_cached_results <- function() {
   counts_df <- read.csv(counts_file)
   cat(sprintf("  Loaded: %s\n", basename(counts_file)))
   
-  # Load details (all strategies in one file)
+  # Load details from individual strategy files
   details <- list()
-  if (!is.null(details_file) && file.exists(details_file)) {
-    all_details <- read.csv(details_file)
-    cat(sprintf("  Loaded: %s\n", basename(details_file)))
-    
-    # Split by strategy
-    strategy_map <- c(
-      "Size=5,D=0.005" = "distsize5",
-      "Size=2,D=0.005" = "distsize2",
-      "Growth,size=5,W=6mo,D=0.01" = "growth",
-      "Random,10%" = "random",
-      "RITA" = "rita",
-      "Network,partners>4" = "network"
-    )
-    
-    for (strat_name in names(strategy_map)) {
-      key <- strategy_map[strat_name]
-      strat_data <- all_details[all_details$strategy == strat_name, ]
-      if (nrow(strat_data) > 0) {
-        details[[key]] <- list(o = strat_data)
+  
+  # Strategy files and their keys
+  strategy_files <- list(
+    distsize5 = find_most_recent("^details_distsize5_"),
+    distsize2 = find_most_recent("^details_distsize2_"),
+    growth = find_most_recent("^details_growth_"),
+    random = find_most_recent("^details_random_"),
+    rita = find_most_recent("^details_rita_"),
+    network = find_most_recent("^details_network_")
+  )
+  
+  for (key in names(strategy_files)) {
+    file <- strategy_files[[key]]
+    if (!is.null(file) && file.exists(file)) {
+      df <- read.csv(file)
+      # Normalize column names for individual-based strategies
+      # They have 'contacts' instead of 'contacts_small'/'contacts_large'
+      if ("contacts" %in% names(df) && !"contacts_small" %in% names(df)) {
+        df$contacts_small <- df$contacts
+        df$contacts_large <- df$contacts
       }
+      details[[key]] <- list(o = df)
+      cat(sprintf("  Loaded: %s (%d rows)\n", basename(file), nrow(df)))
+    } else {
+      cat(sprintf("  Warning: %s details not found\n", key))
     }
-  } else {
-    cat("  Warning: details file not found\n")
   }
   
   cat("  Cache loaded successfully!\n\n")
