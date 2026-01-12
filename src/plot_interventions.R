@@ -101,14 +101,24 @@ plot_efficiency_distributions <- function(results,
     "Network" = "#A65628"
   )
   
-  # Improved pseudo-log transformation using asinh for smoother behavior near zero
+  # Pseudo-log transformation using asinh for smoother behavior near zero
   # asinh(x) ≈ x for small x, and ≈ sign(x)*log(2|x|) for large |x|
-  # Scale factor adjusts the transition point
-  scale_factor <- 1  # Values < 1 are nearly linear, values > 1 are compressed
-  pseudo_log_trans <- scales::trans_new(
-    name = "pseudo_log",
-    transform = function(x) asinh(x * scale_factor) / scale_factor,
-    inverse = function(x) sinh(x * scale_factor) / scale_factor
+  # Scale factor adjusts the transition point - higher = more expansion near zero
+  
+  # PUTA transformation (moderate compression for values typically 0-3)
+  puta_scale <- 1
+  puta_trans <- scales::trans_new(
+    name = "puta_pseudo_log",
+    transform = function(x) asinh(x * puta_scale) / puta_scale,
+    inverse = function(x) sinh(x * puta_scale) / puta_scale
+  )
+  
+  # PIA transformation (higher scale to expand 0-1 range where most density is)
+  pia_scale <- 3  # Higher value = more space allocated to values near 0
+  pia_trans <- scales::trans_new(
+    name = "pia_pseudo_log",
+    transform = function(x) asinh(x * pia_scale) / pia_scale,
+    inverse = function(x) sinh(x * pia_scale) / pia_scale
   )
   
   # Common theme for horizontal violin plots
@@ -121,12 +131,13 @@ plot_efficiency_distributions <- function(results,
     )
   
   # PUTA plots with pseudo-log scale (horizontal orientation)
+  # Complete tick marks at regular intervals
   p1 <- ggplot(df, aes(x = strategy, y = puta_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     scale_y_continuous(
-      trans = pseudo_log_trans,
-      breaks = c(0, 0.5, 1, 2, 5, 10),
-      labels = c("0", "0.5", "1", "2", "5", "10")
+      trans = puta_trans,
+      breaks = c(0, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+      labels = c("0", "0.25", "0.5", "0.75", "1", "1.5", "2", "3", "5")
     ) +
     coord_flip() +
     labs(y = "PUTA per contact", x = "",
@@ -137,9 +148,9 @@ plot_efficiency_distributions <- function(results,
   p2 <- ggplot(df, aes(x = strategy, y = puta_eff_large, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     scale_y_continuous(
-      trans = pseudo_log_trans,
-      breaks = c(0, 0.5, 1, 2, 5, 10),
-      labels = c("0", "0.5", "1", "2", "5", "10")
+      trans = puta_trans,
+      breaks = c(0, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+      labels = c("0", "0.25", "0.5", "0.75", "1", "1.5", "2", "3", "5")
     ) +
     coord_flip() +
     labs(y = "PUTA per contact", x = "",
@@ -147,13 +158,13 @@ plot_efficiency_distributions <- function(results,
     scale_fill_manual(values = strategy_colors) +
     common_theme
   
-  # PIA plots with pseudo-log scale (horizontal orientation)
+  # PIA plots with pseudo-log scale - expanded 0-1 range (horizontal orientation)
   p3 <- ggplot(df, aes(x = strategy, y = pia_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     scale_y_continuous(
-      trans = pseudo_log_trans,
-      breaks = c(0, 1, 5, 10, 20, 50, 100),
-      labels = c("0", "1", "5", "10", "20", "50", "100")
+      trans = pia_trans,
+      breaks = c(0, 0.25, 0.5, 1, 2, 5, 10, 20, 50),
+      labels = c("0", "0.25", "0.5", "1", "2", "5", "10", "20", "50")
     ) +
     coord_flip() +
     labs(y = "PIA per contact", x = "",
@@ -164,9 +175,9 @@ plot_efficiency_distributions <- function(results,
   p4 <- ggplot(df, aes(x = strategy, y = pia_eff_large, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     scale_y_continuous(
-      trans = pseudo_log_trans,
-      breaks = c(0, 1, 5, 10, 20, 50, 100),
-      labels = c("0", "1", "5", "10", "20", "50", "100")
+      trans = pia_trans,
+      breaks = c(0, 0.25, 0.5, 1, 2, 5, 10, 20, 50),
+      labels = c("0", "0.25", "0.5", "1", "2", "5", "10", "20", "50")
     ) +
     coord_flip() +
     labs(y = "PIA per contact", x = "",
