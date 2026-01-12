@@ -1,0 +1,235 @@
+# =============================================================================
+# Master Analysis Pipeline
+# =============================================================================
+#
+# This script runs the complete intervention analysis pipeline, generating:
+#   1. PUTA efficiency violin plot (efficiency_distributions_violin.pdf)
+#   2. Mechanism analysis plot (mechanism_analysis.png)
+#
+# Usage:
+#   source("src/run_analysis.R")
+#   
+#   # Option 1: Run everything fresh
+#   run_full_analysis()
+#   
+#   # Option 2: Use most recent saved results (faster)
+#   run_full_analysis(use_cached = TRUE)
+#   
+#   # Option 3: Just regenerate plots from cached results
+#   generate_plots_from_cache()
+#
+# =============================================================================
+
+library(here)
+
+# Source required scripts
+source(here::here("src", "intervention0.R"))
+source(here::here("src", "plot_interventions.R"))
+
+#' Find the most recent results file by pattern
+#' 
+#' @param pattern Glob pattern for files (e.g., "counts_*.csv")
+#' @param dir Directory to search in
+#' @return Path to most recent file, or NULL if none found
+find_most_recent <- function(pattern, dir = here::here("intervention-results")) {
+  files <- list.files(dir, pattern = pattern, full.names = TRUE)
+  if (length(files) == 0) return(NULL)
+  
+  # Extract timestamps (YYYYMMDD_HHMMSS) and find most recent
+  # Handle both formats: name_TIMESTAMP.csv and name_extra_TIMESTAMP.csv
+  timestamps <- sapply(files, function(f) {
+    # Extract the last occurrence of YYYYMMDD_HHMMSS pattern before .csv
+    m <- regmatches(f, regexpr("\\d{8}_\\d{6}(?=\\.csv$)", f, perl = TRUE))
+    if (length(m) == 0) NA_character_ else m
+  })
+  
+  valid_idx <- !is.na(timestamps)
+  if (!any(valid_idx)) return(NULL)
+  
+  most_recent_idx <- which(timestamps == max(timestamps[valid_idx], na.rm = TRUE))[1]
+  files[most_recent_idx]
+}
+
+#' Load cached intervention results
+#' 
+#' @return List with results in the same format as run_intervention_analysis()
+#' @details Loads the most recent CSV files from intervention-results/
+load_cached_results <- function() {
+  cat("Looking for cached results...\n")
+  
+  # Find most recent files
+  counts_file <- find_most_recent("^counts_")
+  details_file <- find_most_recent("^details_all_clusters_")
+  
+  if (is.null(counts_file)) {
+    stop("No cached results found. Run with use_cached = FALSE first.")
+  }
+  
+  # Extract timestamp for display
+  timestamp <- regmatches(counts_file, regexpr("\\d{8}_\\d{6}", counts_file))
+  cat(sprintf("  Found results from: %s\n", timestamp))
+  
+  # Load counts
+  counts_df <- read.csv(counts_file)
+  cat(sprintf("  Loaded: %s\n", basename(counts_file)))
+  
+  # Load details (all strategies in one file)
+  details <- list()
+  if (!is.null(details_file) && file.exists(details_file)) {
+    all_details <- read.csv(details_file)
+    cat(sprintf("  Loaded: %s\n", basename(details_file)))
+    
+    # Split by strategy
+    strategy_map <- c(
+      "Size=5,D=0.005" = "distsize5",
+      "Size=2,D=0.005" = "distsize2",
+      "Growth,size=5,W=6mo,D=0.01" = "growth",
+      "Random,10%" = "random",
+      "RITA" = "rita",
+      "Network,partners>4" = "network"
+    )
+    
+    for (strat_name in names(strategy_map)) {
+      key <- strategy_map[strat_name]
+      strat_data <- all_details[all_details$strategy == strat_name, ]
+      if (nrow(strat_data) > 0) {
+        details[[key]] <- list(o = strat_data)
+      }
+    }
+  } else {
+    cat("  Warning: details file not found\n")
+  }
+  
+  cat("  Cache loaded successfully!\n\n")
+  
+  list(
+    counts = counts_df,
+    details = details,
+    timestamp = timestamp
+  )
+}
+
+#' Generate plots from cached results
+#' 
+#' @param results Optional: pre-loaded results. If NULL, loads from cache.
+#' @param run_mechanism Whether to run mechanism analysis (default TRUE)
+#' @param n_sims Number of simulations for mechanism analysis (NULL = all)
+#' @return Invisible list of plot objects
+generate_plots_from_cache <- function(results = NULL, 
+                                       run_mechanism = TRUE,
+                                       n_sims = NULL) {
+  
+  plot_dir <- here::here("intervention_plots")
+  if (!dir.exists(plot_dir)) dir.create(plot_dir, recursive = TRUE)
+  
+  # Load cached results if not provided
+  if (is.null(results)) {
+    results <- load_cached_results()
+  }
+  
+  plots <- list()
+  
+  # -------------------------------------------------------------------------
+  # Plot 1: Efficiency distributions (violin plot)
+  # -------------------------------------------------------------------------
+  cat("Generating efficiency distribution plot...\n")
+  p_violin <- plot_efficiency_distributions(results)
+  violin_path <- file.path(plot_dir, "efficiency_distributions_violin.pdf")
+  ggsave(violin_path, p_violin, width = 12, height = 10)
+  cat(sprintf("  Saved: %s\n", violin_path))
+  plots$violin <- p_violin
+  
+  # -------------------------------------------------------------------------
+  # Plot 2: Mechanism analysis
+  # -------------------------------------------------------------------------
+  if (run_mechanism) {
+    cat("\nGenerating mechanism analysis plot...\n")
+    if (is.null(n_sims)) {
+      cat("  Using all simulations (this may take a few minutes)...\n")
+    } else {
+      cat(sprintf("  Using %d simulations...\n", n_sims))
+    }
+    p_mechanism <- run_mechanism_analysis(n_sims = n_sims)
+    plots$mechanism <- p_mechanism
+  }
+  
+  cat("\nAll plots saved to: intervention_plots/\n")
+  invisible(plots)
+}
+
+#' Run the full analysis pipeline
+#' 
+#' @param use_cached If TRUE, use most recent saved results instead of re-running
+#' @param run_mechanism Whether to run mechanism analysis (default TRUE)
+#' @param n_sims Number of simulations for mechanism analysis (NULL = all)
+#' @param d_file Path to D (transmission) data file
+#' @param g_file Path to G (individual) data file
+#' @param ... Additional arguments passed to run_intervention_analysis()
+#' @return Invisible list with results and plots
+run_full_analysis <- function(use_cached = FALSE,
+                               run_mechanism = TRUE,
+                               n_sims = NULL,
+                               d_file = "src/experiment1-N10000-gens7-D.csv",
+                               g_file = "src/experiment1-N10000-gens7-G.csv",
+                               ...) {
+  
+  cat("=================================================\n")
+  cat("  Intervention Analysis Pipeline\n")
+  cat("=================================================\n\n")
+  
+  # -------------------------------------------------------------------------
+  # Step 1: Get intervention results (cached or fresh)
+  # -------------------------------------------------------------------------
+  if (use_cached) {
+    cat("STEP 1: Loading cached intervention results\n")
+    cat("-------------------------------------------------\n")
+    results <- load_cached_results()
+  } else {
+    cat("STEP 1: Running intervention analysis (this takes ~2 minutes)\n")
+    cat("-------------------------------------------------\n")
+    results <- run_intervention_analysis(
+      d_file = d_file,
+      g_file = g_file,
+      ...
+    )
+  }
+  
+  # -------------------------------------------------------------------------
+  # Step 2: Generate plots
+  # -------------------------------------------------------------------------
+  cat("\nSTEP 2: Generating plots\n")
+  cat("-------------------------------------------------\n")
+  plots <- generate_plots_from_cache(
+    results = results,
+    run_mechanism = run_mechanism,
+    n_sims = n_sims
+  )
+  
+  cat("\n=================================================\n")
+  cat("  Pipeline complete!\n")
+  cat("=================================================\n")
+  cat("\nOutputs:\n")
+  cat("  - intervention-results/*.csv (intervention metrics)\n")
+  cat("  - intervention_plots/efficiency_distributions_violin.pdf\n")
+  if (run_mechanism) {
+    cat("  - intervention_plots/mechanism_analysis.png\n")
+  }
+  
+  invisible(list(results = results, plots = plots))
+}
+
+# =============================================================================
+# Quick usage examples (uncomment to run)
+# =============================================================================
+
+# # Run everything fresh:
+# run_full_analysis()
+
+# # Use cached results (much faster):
+# run_full_analysis(use_cached = TRUE)
+
+# # Just regenerate plots from most recent results:
+# generate_plots_from_cache()
+
+# # Skip mechanism analysis (even faster):
+# run_full_analysis(use_cached = TRUE, run_mechanism = FALSE)

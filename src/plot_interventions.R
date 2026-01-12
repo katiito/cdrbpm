@@ -943,7 +943,7 @@ plot_mechanism_analysis <- function(D, G,
 #' 
 run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv",
                                    G_path = "src/experiment1-N10000-gens7-G.csv",
-                                   save_path = NULL,
+                                   save_path = "intervention_plots/mechanism_analysis.png",
                                    n_sims = 100,
                                    width = 12,
                                    height = 12) {
@@ -956,6 +956,9 @@ run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv"
   p <- plot_mechanism_analysis(D, G, n_sims = n_sims)
   
   if (!is.null(save_path)) {
+    # Ensure directory exists
+    save_dir <- dirname(save_path)
+    if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
     cat(sprintf("Saving figure to %s...\n", save_path))
     ggsave(save_path, p, width = width, height = height, dpi = 300)
   }

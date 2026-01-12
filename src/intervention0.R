@@ -1451,24 +1451,27 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
 # =============================================================================
 # Main execution: Run interventions and generate plots
 # =============================================================================
+# Only runs when this script is executed directly (not when sourced)
 
-# Source the plotting functions
-source("src/plot_interventions.R")
-
-# Run interventions with 6-month partner notification window
-cat("Running interventions...\n")
-results <- run_intervention_analysis(
-  d_file = "src/experiment1-N10000-gens7-D.csv",
-  g_file = "src/experiment1-N10000-gens7-G.csv",
-  partner_notification_window_months = 6
-)
-
-# Generate and save violin plots
-cat("\nGenerating efficiency distribution plots...\n")
-p_violin <- plot_efficiency_distributions(results)
-plot_dir <- here::here("intervention_plots")
-if (!dir.exists(plot_dir)) dir.create(plot_dir, recursive = TRUE)
-ggsave(file.path(plot_dir, "efficiency_distributions_violin.pdf"), p_violin, width = 12, height = 10)
-cat("Saved: intervention_plots/efficiency_distributions_violin.pdf\n")
-
-cat("\nDone!\n")
+if (sys.nframe() == 0) {
+  # Source the plotting functions
+  source("src/plot_interventions.R")
+  
+  # Run interventions with 6-month partner notification window
+  cat("Running interventions...\n")
+  results <- run_intervention_analysis(
+    d_file = "src/experiment1-N10000-gens7-D.csv",
+    g_file = "src/experiment1-N10000-gens7-G.csv",
+    partner_notification_window_months = 6
+  )
+  
+  # Generate and save violin plots
+  cat("\nGenerating efficiency distribution plots...\n")
+  p_violin <- plot_efficiency_distributions(results)
+  plot_dir <- here::here("intervention_plots")
+  if (!dir.exists(plot_dir)) dir.create(plot_dir, recursive = TRUE)
+  ggsave(file.path(plot_dir, "efficiency_distributions_violin.pdf"), p_violin, width = 12, height = 10)
+  cat("Saved: intervention_plots/efficiency_distributions_violin.pdf\n")
+  
+  cat("\nDone!\n")
+}
