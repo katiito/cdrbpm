@@ -485,12 +485,12 @@ run_intervention_analysis <- function(
             theme(legend.position = 'none') +
             scale_x_continuous(breaks = seq(0, max(plot_df$nc, na.rm = TRUE), by = 5))
           
-          # Save plot if output_dir specified
-          if (!is.null(output_dir)) {
-            plot_path <- file.path(output_dir, paste0("cluster_sizes_", timestamp, ".png"))
-            ggsave(plot_path, p, width = 10, height = 8, dpi = 150)
-            cat("  - cluster_sizes_", timestamp, ".png (cluster size distributions)\n", sep = "")
-          }
+          # Save plot to intervention_plots directory
+          plot_dir <- here::here("intervention_plots")
+          if (!dir.exists(plot_dir)) dir.create(plot_dir, recursive = TRUE)
+          plot_path <- file.path(plot_dir, paste0("cluster_sizes_", timestamp, ".png"))
+          ggsave(plot_path, p, width = 10, height = 8, dpi = 150)
+          cat("  - intervention_plots/cluster_sizes_", timestamp, ".png (cluster size distributions)\n", sep = "")
           
           # Display plot if show_table is TRUE
           if (show_table) {
@@ -1466,7 +1466,9 @@ results <- run_intervention_analysis(
 # Generate and save violin plots
 cat("\nGenerating efficiency distribution plots...\n")
 p_violin <- plot_efficiency_distributions(results)
-ggsave("src/efficiency_distributions_violin.pdf", p_violin, width = 12, height = 10)
-cat("Saved: src/efficiency_distributions_violin.pdf\n")
+plot_dir <- here::here("intervention_plots")
+if (!dir.exists(plot_dir)) dir.create(plot_dir, recursive = TRUE)
+ggsave(file.path(plot_dir, "efficiency_distributions_violin.pdf"), p_violin, width = 12, height = 10)
+cat("Saved: intervention_plots/efficiency_distributions_violin.pdf\n")
 
 cat("\nDone!\n")
