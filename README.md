@@ -23,9 +23,9 @@ generate_plots_from_cache()
 
 | Output | Location |
 |--------|----------|
-| **PUTA efficiency violin plot** | `intervention_plots/efficiency_distributions_violin.pdf` |
-| **Mechanism analysis plot** | `intervention_plots/mechanism_analysis.png` |
-| Cluster size histograms | `intervention_plots/cluster_sizes_*.png` |
+| **PUTA efficiency violin plot** | `intervention-plots/efficiency_distributions_violin.pdf` |
+| **Mechanism analysis plot** | `intervention-plots/mechanism_analysis.png` |
+| Cluster size histograms | `intervention-plots/cluster_sizes_*.png` |
 | Intervention metrics (CSV) | `intervention-results/*.csv` |
 
 ## Notes

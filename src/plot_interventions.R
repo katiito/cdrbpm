@@ -943,7 +943,7 @@ plot_mechanism_analysis <- function(D, G,
 #' 
 run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv",
                                    G_path = "src/experiment1-N10000-gens7-G.csv",
-                                   save_path = "intervention_plots/mechanism_analysis.png",
+                                   save_path = "intervention-plots/mechanism_analysis.png",
                                    n_sims = 100,
                                    width = 12,
                                    height = 12) {

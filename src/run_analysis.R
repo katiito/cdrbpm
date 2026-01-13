@@ -121,7 +121,7 @@ generate_plots_from_cache <- function(results = NULL,
                                        run_mechanism = TRUE,
                                        n_sims = NULL) {
   
-  plot_dir <- here::here("intervention_plots")
+  plot_dir <- here::here("intervention-plots")
   if (!dir.exists(plot_dir)) dir.create(plot_dir, recursive = TRUE)
   
   # Load cached results if not provided
@@ -155,7 +155,7 @@ generate_plots_from_cache <- function(results = NULL,
     plots$mechanism <- p_mechanism
   }
   
-  cat("\nAll plots saved to: intervention_plots/\n")
+  cat("\nAll plots saved to: intervention-plots/\n")
   invisible(plots)
 }
 
@@ -212,9 +212,9 @@ run_full_analysis <- function(use_cached = FALSE,
   cat("=================================================\n")
   cat("\nOutputs:\n")
   cat("  - intervention-results/*.csv (intervention metrics)\n")
-  cat("  - intervention_plots/efficiency_distributions_violin.pdf\n")
+  cat("  - intervention-plots/efficiency_distributions_violin.pdf\n")
   if (run_mechanism) {
-    cat("  - intervention_plots/mechanism_analysis.png\n")
+    cat("  - intervention-plots/mechanism_analysis.png\n")
   }
   
   invisible(list(results = results, plots = plots))
