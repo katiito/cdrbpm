@@ -544,15 +544,18 @@ plot_mechanism_analysis <- function(D, G,
             ))
           }
           
-          # Delay components (now correctly labeled)
+          # Delay components for growth cluster intervention
+          # Timeline: Infection → Diagnosis → Sequencing → [Wait for cluster] → Trigger → Analysis → Implementation → IT
           delay_results <- rbind(delay_results, data.frame(
             component = c("Dx to Sequencing\n(sequencing delay)", 
-                          "Sequencing to Trigger\n(analysis delay)", 
-                          "Trigger to Intervention\n(implementation delay)"),
+                          "Sequencing to Trigger\n(cluster accumulation)", 
+                          "Trigger to Analysis\n(analysis delay)",
+                          "Analysis to Intervention\n(implementation delay)"),
             delay = c(
-              time_seq - time_dx,
-              t[trigger_i] - time_seq,
-              analysis_delay + implementation_delay
+              time_seq - time_dx,                    # Time from diagnosis to sequencing complete
+              t[trigger_i] - time_seq,              # Time waiting for 5th case in cluster (varies by member)
+              analysis_delay,                        # Fixed 14-day analysis delay after trigger
+              implementation_delay                   # Fixed 14-day implementation delay after analysis
             )
           ))
         }
@@ -888,8 +891,9 @@ plot_mechanism_analysis <- function(D, G,
     
     delay_summary$component <- factor(delay_summary$component, 
                                       levels = c("Dx to Sequencing\n(sequencing delay)", 
-                                                 "Sequencing to Trigger\n(analysis delay)", 
-                                                 "Trigger to Intervention\n(implementation delay)"))
+                                                 "Sequencing to Trigger\n(cluster accumulation)", 
+                                                 "Trigger to Analysis\n(analysis delay)",
+                                                 "Analysis to Intervention\n(implementation delay)"))
   
     p_delay <- ggplot(delay_summary, aes(x = component, y = mean_delay)) +
       geom_bar(stat = "identity", fill = "gray50", color = "black", width = 0.7) +
@@ -900,14 +904,14 @@ plot_mechanism_analysis <- function(D, G,
         x = "", 
         y = "Days",
         title = "E. Growth cluster delay components",
-        subtitle = "Time from diagnosis to intervention"
+        subtitle = "Timeline: Diagnosis → Sequencing → Cluster trigger → Analysis → Intervention"
       ) +
       theme_minimal() +
       theme(
         legend.position = "none",
         plot.title = element_text(face = "bold", size = 11),
         plot.subtitle = element_text(size = 9, color = "gray40"),
-        axis.text.x = element_text(size = 9)
+        axis.text.x = element_text(size = 8, angle = 15, hjust = 1)
       )
   } else {
     p_delay <- ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No delay data available") +
