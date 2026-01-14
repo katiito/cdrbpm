@@ -131,7 +131,7 @@ plot_efficiency_distributions <- function(results,
     )
   
   # PUTA plots with pseudo-log scale (horizontal orientation)
-  # Extended tick marks to show detail above 10
+  # Extended tick marks to show full range
   p1 <- ggplot(df, aes(x = strategy, y = puta_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     # Add centile range (2.5th to 97.5th percentile)
@@ -147,8 +147,8 @@ plot_efficiency_distributions <- function(results,
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = puta_trans,
-      breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200),
-      labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200")
+      breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000),
+      labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
     coord_flip() +
     labs(y = "PUTA per contact", x = "",
@@ -171,8 +171,8 @@ plot_efficiency_distributions <- function(results,
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = puta_trans,
-      breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200),
-      labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200")
+      breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000),
+      labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
     coord_flip() +
     labs(y = "PUTA per contact", x = "",
@@ -180,7 +180,7 @@ plot_efficiency_distributions <- function(results,
     scale_fill_manual(values = strategy_colors) +
     common_theme
   
-  # PIA plots with pseudo-log scale - expanded 0-1 range (horizontal orientation)
+  # PIA plots with pseudo-log scale - truncated to show bulk density
   p3 <- ggplot(df, aes(x = strategy, y = pia_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     # Add centile range (2.5th to 97.5th percentile)
@@ -196,8 +196,9 @@ plot_efficiency_distributions <- function(results,
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = pia_trans,
-      breaks = c(0, 0.1, 0.2, 0.5, 1, 2, 5, 10),
-      labels = c("0", "0.1", "0.2", "0.5", "1", "2", "5", "10")
+      breaks = c(0, 0.01, 0.02, 0.05, 0.1, 0.2),
+      labels = c("0", "0.01", "0.02", "0.05", "0.1", "0.2"),
+      limits = c(0, 0.2)
     ) +
     coord_flip() +
     labs(y = "PIA per contact", x = "",
@@ -220,8 +221,9 @@ plot_efficiency_distributions <- function(results,
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = pia_trans,
-      breaks = c(0, 0.1, 0.2, 0.5, 1, 2, 5, 10),
-      labels = c("0", "0.1", "0.2", "0.5", "1", "2", "5", "10")
+      breaks = c(0, 0.01, 0.02, 0.05, 0.1, 0.2),
+      labels = c("0", "0.01", "0.02", "0.05", "0.1", "0.2"),
+      limits = c(0, 0.2)
     ) +
     coord_flip() +
     labs(y = "PIA per contact", x = "",
