@@ -134,6 +134,17 @@ plot_efficiency_distributions <- function(results,
   # Extended tick marks to show detail above 10
   p1 <- ggplot(df, aes(x = strategy, y = puta_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
+    # Add centile range (2.5th to 97.5th percentile)
+    stat_summary(fun.data = function(x) {
+      data.frame(
+        y = mean(x),
+        ymin = quantile(x, 0.025, na.rm = TRUE),
+        ymax = quantile(x, 0.975, na.rm = TRUE)
+      )
+    }, geom = "errorbar", width = 0.3, color = "black", linewidth = 0.8) +
+    # Add mean indicator
+    stat_summary(fun = mean, geom = "point",
+                 color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = puta_trans,
       breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200),
@@ -147,6 +158,17 @@ plot_efficiency_distributions <- function(results,
   
   p2 <- ggplot(df, aes(x = strategy, y = puta_eff_large, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
+    # Add centile range (2.5th to 97.5th percentile)
+    stat_summary(fun.data = function(x) {
+      data.frame(
+        y = mean(x),
+        ymin = quantile(x, 0.025, na.rm = TRUE),
+        ymax = quantile(x, 0.975, na.rm = TRUE)
+      )
+    }, geom = "errorbar", width = 0.3, color = "black", linewidth = 0.8) +
+    # Add mean indicator
+    stat_summary(fun = mean, geom = "point",
+                 color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = puta_trans,
       breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200),
@@ -161,6 +183,17 @@ plot_efficiency_distributions <- function(results,
   # PIA plots with pseudo-log scale - expanded 0-1 range (horizontal orientation)
   p3 <- ggplot(df, aes(x = strategy, y = pia_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
+    # Add centile range (2.5th to 97.5th percentile)
+    stat_summary(fun.data = function(x) {
+      data.frame(
+        y = mean(x),
+        ymin = quantile(x, 0.025, na.rm = TRUE),
+        ymax = quantile(x, 0.975, na.rm = TRUE)
+      )
+    }, geom = "errorbar", width = 0.3, color = "black", linewidth = 0.8) +
+    # Add mean indicator
+    stat_summary(fun = mean, geom = "point",
+                 color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = pia_trans,
       breaks = c(0, 0.1, 0.2, 0.5, 1, 2, 5, 10),
@@ -174,6 +207,17 @@ plot_efficiency_distributions <- function(results,
   
   p4 <- ggplot(df, aes(x = strategy, y = pia_eff_large, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
+    # Add centile range (2.5th to 97.5th percentile)
+    stat_summary(fun.data = function(x) {
+      data.frame(
+        y = mean(x),
+        ymin = quantile(x, 0.025, na.rm = TRUE),
+        ymax = quantile(x, 0.975, na.rm = TRUE)
+      )
+    }, geom = "errorbar", width = 0.3, color = "black", linewidth = 0.8) +
+    # Add mean indicator
+    stat_summary(fun = mean, geom = "point",
+                 color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
       trans = pia_trans,
       breaks = c(0, 0.1, 0.2, 0.5, 1, 2, 5, 10),
