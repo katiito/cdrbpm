@@ -94,19 +94,24 @@ generate_plots_from_cache()
 ## 5. Scope of PIA / PUTA (behavioural change)
 
 * **New**
-    * `piapids = recipients of cluster donors ∪ cluster members ∪ donors of cluster recipients` (one outward step both directions).
+    * `piapids = recipients of cluster members' transmissions ∪ cluster members ∪ donors who transmitted to cluster members` (one outward step both directions).
     * Broader set increases potential PIA/PUTA.
 * **Old**
-    * `piapids = recipients of cluster donors ∪ cluster members` (donors-of-recipients omitted).
+    * `piapids = recipients of cluster donors ∪ cluster members` (donors who transmitted to cluster members omitted).
 
 ---
 ## 6. Contact modelling
 
 * **New**
-    * Computes contact counts where needed.
-    * Per member degree = `Fdegree + Gdegree + Hdegree`.
-    * Dense (`small`) subnetwork: `total_contacts = nrow(G1) + sum(pmax(degree - (nrow(G1)-1), 0))`.
-    * Sparse (`large`) subnetwork: `total_contacts = total_degree - (nrow(G1) - 2)`.
+    * Computes time-windowed contact counts from partner notification window (default 6 months = 180 days):
+        * `total_contacts = Fcontacts_180d + Gcontacts_180d + Hcontacts_180d` (or 90d for 3-month window)
+        * These are actual contact counts in the window before diagnosis, not degrees at infection
+    * Cluster-based strategies compute two subnetwork contact estimates:
+        * Dense (`small`) subnetwork: `contacts = nrow(G1) + sum(pmax(total_contacts - (nrow(G1)-1), 0))`
+            * Assumes cluster members are all connected to each other internally
+        * Sparse (`large`) subnetwork: `contacts = sum(total_contacts) - (nrow(G1) - 2)`
+            * Assumes minimal internal connections among cluster members
+    * Individual-based strategies: `contacts = total_contacts + 1` (self + partners)
     * Outputs emphasize per-contact efficiencies.
 * **Old**
     * No contact accounting; metrics mostly per member (`/ nc`).
@@ -125,9 +130,10 @@ generate_plots_from_cache()
 
 ### B. Random selection (`random_intervention`)
 * **New**
-    * Samples up to `random_sample_size` (default 30) from eligible cases (gens 1 .. last-1).
-    * Degree = `F + G + H`; contacts per individual = `degree + 1`.
-    * Summaries: total PUTA, PUTA/contact, PIA quantiles (1% / 99%).
+    * Samples `random_coverage` proportion of eligible cases (default 0.10 = 10% of eligible population, gens 1 .. last-1).
+    * Sample size computed as: `random_sample_size = round(random_coverage × eligible_population)`
+    * Contacts = `total_contacts + 1` where `total_contacts = Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd` (time-windowed).
+    * Summaries: total PUTA, PUTA/contact, PIA quantiles (10th / 90th percentiles).
 * **Old**
     * Uses all eligible cases.
     * No contact notion; PIA/PUTA mean & variance per person.
@@ -136,7 +142,8 @@ generate_plots_from_cache()
 ### C. RITA-based (`rita_intervention`)
 * **New**
     * Configurable detection window: `rita_window_months` (default 6); test simulated via `rexp(1/(months*30))`.
-    * Adds degree-based contacts; reports totals + per-contact efficiency + quantiles; returns sum of contacts.
+    * Contacts = `total_contacts + 1` where `total_contacts = Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd` (time-windowed).
+    * Reports totals + per-contact efficiency + quantiles (10th / 90th percentiles); returns sum of contacts.
 * **Old**
     * Fixed 6-month window.
     * Per-person mean / variance only.
@@ -146,8 +153,9 @@ generate_plots_from_cache()
 
 ### D. Network-degree targeting (`network_intervention`)
 * **New**
-    * Unweighted degree = `F + G + H` (changes qualifying set).
-    * Outputs: per-contact PUTA efficiency + totals; (comment notes mixed scaling in PIA quantiles).
+    * Targets individuals with `total_contacts ≥ network_degree_threshold` (default 4).
+    * Contacts = `Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd` (time-windowed, within partner notification window).
+    * Outputs: per-contact PUTA/PIA efficiency + totals; quantiles (10th / 90th percentiles).
 * **Old**
     * Weighted degree ( `F + (7/2)*G + (7*30)*H` ) approximating partners over 7 months.
     * Reports per-person metrics and proportion intervened.
@@ -170,7 +178,7 @@ generate_plots_from_cache()
 
 * **New**
     * Empty selections return structured zeroed summaries (`total_contacts = 0`).
-    * Uses empirical quantiles (10% / 90% for PUTA/contact; 10% / 90% or 1% / 99% for PIA depending on strategy).
+    * Uses empirical quantiles: 10th / 90th percentiles uniformly for all strategies and metrics (PUTA and PIA efficiency).
 * **Old**
     * Empty sets could yield undefined means/variances.
     * Confidence intervals via normal approximation.
