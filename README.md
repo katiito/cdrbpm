@@ -79,11 +79,16 @@ generate_plots_from_cache()
 * **Shared concept**
     * Grow from index `"0"` along edges ≤ threshold; drop last generation.
 * **Intervention trigger**
-    * New: If `nrow(G1) ≥ cluster_size`, set `IT = G1$timesequenced[cluster_size] + rexp(1, intervention_rate)`.
+    * New: If `nrow(G1) ≥ cluster_size`, set `IT = G1$timesequenced[cluster_size] + analysis_delay_days + implementation_delay_days`.
+    * Two-stage delay system:
+        * `analysis_delay_days` (default 14): Time to analyze cluster after k-th sequence arrives
+        * `implementation_delay_days` (default 14): Time to deploy intervention after analysis complete
+        * Total delay: 28 days from detection to intervention
     * Old: Loop until size reaches threshold then `timesequenced[i] + ritdist()`.
-    * → Functionally equivalent; new is simpler & explicit.
+    * → New uses deterministic fixed delays; old used stochastic delays.
 * **Post-intervention filtering**
-    * Both exclude cases with `timesequenced ≥ IT`.
+    * New: Excludes cases with `timesequenced ≥ (IT - analysis_delay_days)` (knowledge cutoff - accounts for data processing lag at intervention time).
+    * Old: Excluded cases with `timesequenced ≥ IT`.
 
 ---
 ## 5. Scope of PIA / PUTA (behavioural change)
