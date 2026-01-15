@@ -102,11 +102,35 @@ load_cached_results <- function() {
     }
   }
   
+  # Load parameters if available
+  params_file <- find_most_recent("^parameters_")
+  parameters <- NULL
+  if (!is.null(params_file) && file.exists(params_file)) {
+    params_df <- read.csv(params_file)
+    # Convert to named list
+    parameters <- setNames(as.list(params_df$value), params_df$parameter)
+    # Convert numeric strings back to numeric where appropriate
+    numeric_params <- c("cluster_size_5", "cluster_size_2", "distance_threshold",
+                        "network_degree_threshold", "random_sample_size",
+                        "rita_window_months", "lookback_window_months",
+                        "growth_distance_threshold", "analysis_delay_days",
+                        "implementation_delay_days", "partner_notification_window_months")
+    for (param in numeric_params) {
+      if (!is.null(parameters[[param]])) {
+        parameters[[param]] <- as.numeric(parameters[[param]])
+      }
+    }
+    cat(sprintf("  Loaded: %s\n", basename(params_file)))
+  } else {
+    cat("  Warning: parameters file not found\n")
+  }
+
   cat("  Cache loaded successfully!\n\n")
-  
+
   list(
     counts = counts_df,
     details = details,
+    parameters = parameters,
     timestamp = timestamp
   )
 }
@@ -151,7 +175,29 @@ generate_plots_from_cache <- function(results = NULL,
     } else {
       cat(sprintf("  Using %d simulations...\n", n_sims))
     }
-    p_mechanism <- run_mechanism_analysis(n_sims = n_sims)
+
+    # Extract parameters from results if available, otherwise use defaults
+    partner_notification_window_months <- 6  # default
+    network_degree_threshold <- 4  # default
+
+    if (!is.null(results$parameters)) {
+      if (!is.null(results$parameters$partner_notification_window_months)) {
+        partner_notification_window_months <- results$parameters$partner_notification_window_months
+      }
+      if (!is.null(results$parameters$network_degree_threshold)) {
+        network_degree_threshold <- results$parameters$network_degree_threshold
+      }
+      cat(sprintf("  Using parameters from intervention analysis: partner_notification_window_months=%d, network_degree_threshold=%d\n",
+                  partner_notification_window_months, network_degree_threshold))
+    } else {
+      cat("  Warning: No parameter information found in results, using defaults\n")
+    }
+
+    p_mechanism <- run_mechanism_analysis(
+      partner_notification_window_months = partner_notification_window_months,
+      network_degree_threshold = network_degree_threshold,
+      n_sims = n_sims
+    )
     plots$mechanism <- p_mechanism
   }
   

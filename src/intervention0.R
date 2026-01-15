@@ -535,6 +535,20 @@ run_intervention_analysis <- function(
         random = orand,
         rita = orita,
         network = onet
+      ),
+      parameters = list(
+        partner_notification_window_months = partner_notification_window_months,
+        network_degree_threshold = network_degree_threshold,
+        distance_threshold = distance_threshold,
+        growth_distance_threshold = growth_distance_threshold,
+        cluster_size_5 = cluster_size_5,
+        cluster_size_2 = cluster_size_2,
+        random_sample_size = random_sample_size,
+        rita_window_months = rita_window_months,
+        lookback_window_months = lookback_window_months,
+        analysis_delay_days = analysis_delay_days,
+        implementation_delay_days = implementation_delay_days,
+        seed = seed
       )
     ))
   }

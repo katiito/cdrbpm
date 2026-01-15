@@ -25,11 +25,16 @@
 #' @param title_prefix Optional prefix for plot titles
 #' @return A combined ggplot object with 4 panels
 #' 
-plot_efficiency_distributions <- function(results, 
+plot_efficiency_distributions <- function(results,
                                           title_prefix = "") {
   require(ggplot2)
   require(patchwork)
-  
+
+  # Validate input
+  if (is.null(results) || !is.list(results) || is.null(results$details)) {
+    stop("Invalid results object. Must contain 'details' component from run_intervention_analysis().")
+  }
+
   # Strategy names and display labels
   strategy_names <- c("distsize5", "distsize2", "growth", "random", "rita", "network")
   strategy_labels <- c("Size>=5", "Size>=2", "Growth", "Random", "RITA", "Network")
@@ -252,12 +257,17 @@ plot_efficiency_distributions <- function(results,
 #' @param G Generation data frame (from experiment CSV)
 #' @param distance_threshold_distsize Distance threshold for size clusters (default 0.005, matching intervention0.R)
 #' @param distance_threshold_growth Distance threshold for growth clusters (default 0.01, matching intervention0.R)
-#' @param n_sims Number of simulations to analyze (default 100)
+#' @param partner_notification_window_months Partner notification window (default 6, matching intervention0.R)
+#' @param network_degree_threshold Network degree threshold (default 4, matching intervention0.R)
+#' @param n_sims Number of simulations to analyze (default 100). For robust Panel D (survivorship),
+#'   use n_sims >= 1000 or NULL (all simulations) since growth clusters trigger in ~0.14% of simulations.
 #' @return A combined ggplot object with mechanism analysis panels
-#' 
-plot_mechanism_analysis <- function(D, G, 
+#'
+plot_mechanism_analysis <- function(D, G,
                                     distance_threshold_distsize = 0.005,
                                     distance_threshold_growth = 0.01,
+                                    partner_notification_window_months = 6,
+                                    network_degree_threshold = 4,
                                     n_sims = 100) {
   require(ggplot2)
   require(patchwork)
@@ -277,12 +287,14 @@ plot_mechanism_analysis <- function(D, G,
   strategy_order <- c("RITA", "Growth", "Size>=5", "Random", "Network")
   
   # Parameters - matching those used in intervention0.R analysis
-  # (distance thresholds come from function parameters)
+  # (distance thresholds and contact/degree parameters come from function parameters)
   implementation_delay <- 14        # implementation_delay_days
-  analysis_delay <- 14              # analysis_delay_days  
+  analysis_delay <- 14              # analysis_delay_days
   lookback_days <- 6 * 30           # lookback_window_months = 6
   rita_window_days <- 6 * 30        # rita_window_months = 6 (average window for RITA)
-  network_degree_threshold <- 4     # network_degree_threshold
+
+  # Determine contact window based on partner notification window
+  contact_suffix <- if (partner_notification_window_months == 3) "90d" else "180d"
   
   # Use all simulations (no filtering/sorting to avoid bias)
   simids <- unique(G$simid)
@@ -436,12 +448,12 @@ plot_mechanism_analysis <- function(D, G,
     }
     
     # =====================================================================
-    # Network (high degree) strategy - top decile of contacts (>=12)
+    # Network (high degree) strategy - individuals with >= network_degree_threshold contacts
     # =====================================================================
-    G1_eligible_sorted$total_contacts <- G1_eligible_sorted$Fcontacts_90d + 
-                                          G1_eligible_sorted$Gcontacts_90d + 
-                                          G1_eligible_sorted$Hcontacts_90d
-    high_degree <- G1_eligible_sorted[G1_eligible_sorted$total_contacts >= 8, ]
+    G1_eligible_sorted$total_contacts <- G1_eligible_sorted[[paste0("Fcontacts_", contact_suffix)]] +
+                                          G1_eligible_sorted[[paste0("Gcontacts_", contact_suffix)]] +
+                                          G1_eligible_sorted[[paste0("Hcontacts_", contact_suffix)]]
+    high_degree <- G1_eligible_sorted[G1_eligible_sorted$total_contacts >= network_degree_threshold, ]
     
     if (nrow(high_degree) > 0) {
       for (k in 1:nrow(high_degree)) {
@@ -982,28 +994,35 @@ plot_mechanism_analysis <- function(D, G,
 # run_mechanism_analysis
 # =============================================================================
 #' Convenience function to run the full mechanism analysis
-#' 
+#'
 #' @param D_path Path to distance CSV file
-#' @param G_path Path to generation CSV file  
+#' @param G_path Path to generation CSV file
 #' @param save_path Optional path to save the figure
+#' @param partner_notification_window_months Partner notification window (default 6)
+#' @param network_degree_threshold Network degree threshold (default 4)
 #' @param n_sims Number of simulations to analyze (default 100)
 #' @param width Figure width in inches (default 12)
-#' @param height Figure height in inches (default 10)
+#' @param height Figure height in inches (default 12)
 #' @return The ggplot object
-#' 
+#'
 run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv",
                                    G_path = "src/experiment1-N10000-gens7-G.csv",
                                    save_path = "intervention-plots/mechanism_analysis.png",
+                                   partner_notification_window_months = 6,
+                                   network_degree_threshold = 4,
                                    n_sims = 100,
                                    width = 12,
                                    height = 12) {
-  
+
   cat("Loading data...\n")
   D <- read.csv(D_path)
   G <- read.csv(G_path)
-  
+
   cat("Generating mechanism analysis plots...\n")
-  p <- plot_mechanism_analysis(D, G, n_sims = n_sims)
+  p <- plot_mechanism_analysis(D, G,
+                                partner_notification_window_months = partner_notification_window_months,
+                                network_degree_threshold = network_degree_threshold,
+                                n_sims = n_sims)
   
   if (!is.null(save_path)) {
     # Ensure directory exists

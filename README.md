@@ -302,13 +302,17 @@ The figure `intervention-results/mechanism_analysis.png` contains:
 
 ### Parameters
 
-The mechanism analysis uses parameters matching `intervention0.R`:
-- `implementation_delay_days = 14`
-- `analysis_delay_days = 14`
-- `rita_window_months = 6` (exponential distribution with mean 180 days)
-- `distance_threshold_growth = 0.01` (for growth clusters)
-- `distance_threshold_distsize = 0.005` (for size-based clusters)
-- `lookback_window_months = 6` (for growth trigger)
+The mechanism analysis uses parameters matching `intervention0.R` defaults:
+- `implementation_delay_days` (default: 14 days)
+- `analysis_delay_days` (default: 14 days)
+- `rita_window_months` (default: 6 months, exponential distribution with mean 180 days)
+- `distance_threshold_growth` (default: 0.01, for growth clusters)
+- `distance_threshold_distsize` (default: 0.005, for size-based clusters)
+- `lookback_window_months` (default: 6 months, for growth trigger)
+- `partner_notification_window_months` (default: 6 months = 180 days, determines contact window)
+- `network_degree_threshold` (default: 4 contacts, for network-based targeting)
+
+These parameters can be passed to `run_mechanism_analysis()` to match specific intervention analysis settings.
 
 ### Efficiency Distributions
 
