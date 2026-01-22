@@ -5,7 +5,7 @@
 # This script evaluates the effectiveness of different intervention strategies
 # for HIV cluster detection and response. It processes simulated epidemic data
 # to compare how various cluster prioritization methods perform in terms of:
-#   - Person-years of Untreated infection Averted (PUTA)
+#   - Person-days of Untreated infection Averted (PUTA)
 #   - Potential Infections Averted (PIA)
 #   - Contact tracing efficiency
 #
@@ -23,7 +23,7 @@
 #                           timesequenced, Fdegree, Gdegree, Hdegree, simid
 #
 # Output metrics:
-#   - PUTA: Person-years of untreated infection averted by intervention
+#   - PUTA: Person-days of untreated infection averted by intervention
 #   - PUTA/contact: Efficiency metric (PUTA per contact traced)
 #   - PIA: Number of potential infections averted
 #   - Contacts: Number of individuals requiring follow-up (contact tracing burden)
