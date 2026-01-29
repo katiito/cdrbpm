@@ -11,6 +11,8 @@
 
 ## TO do items
 
+0. Check on the delays plotted for growth cluster.
+1. Work out a RITA + growth cluster metric (all cluster members have at least one RITA - should you act quickly when you get one?)
 1. Plot a relative effectiveness of interventions to reduce the reduce the variability by the different simulations
 2. Implement a secondary contacts only (on top of random) as a fair assessment of contact tracing 
 3. Implement a. differential transmission risk for individuals and b. transmission risk assortatitively, c. contact rate assortatitivy
