@@ -345,8 +345,9 @@ run_intervention_analysis <- function(
         Low_PIA = pia_vec[4], 
         High_PIA = pia_vec[5])
     }
-    
-    odf <- rbind(
+
+    # Build rows list
+    rows <- list(
       # Size=5: small and large rows
       build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "small",
                 ods5$total_contacts_small, ods5$puta_small, ods5$pia_small),
@@ -371,7 +372,15 @@ run_intervention_analysis <- function(
                 oritasec$total_contacts_small, oritasec$puta_small, oritasec$pia_small),
       build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "large",
                 oritasec$total_contacts_large, oritasec$puta_large, oritasec$pia_large)
-    ) |> as.data.frame()
+    )
+
+    # Use incremental rbind instead of do.call(rbind, rows)
+    # do.call has issues with named vectors
+    odf_mat <- rows[[1]]
+    for (i in 2:length(rows)) {
+      odf_mat <- rbind(odf_mat, rows[[i]])
+    }
+    odf <- as.data.frame(odf_mat, stringsAsFactors = FALSE)
     
     # Convert numeric columns from character
     num_cols <- c("Contacts", "Total_PUTA", "PUTA/contact", "Median_PUTA", "Low_PUTA", "High_PUTA",
