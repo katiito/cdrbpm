@@ -30,10 +30,10 @@ IT = G1$timesequenced[cluster_size] + analysis_delay_days + implementation_delay
 
 ---
 
-### ✅ Fix 2: Corrected PIA/PUTA Scope Description
+### ✅ Fix 2: Corrected PIA/IDA Scope Description
 **File**: `README.md` lines 89-95
 
-**Changed**: Section 5 "Scope of PIA / PUTA"
+**Changed**: Section 5 "Scope of PIA / IDA"
 
 **Before**:
 ```
@@ -128,7 +128,7 @@ Contacts = Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd (time-windowed)
 
 **Before**:
 ```
-Uses empirical quantiles (10% / 90% for PUTA/contact; 10% / 90% or 1% / 99% for PIA)
+Uses empirical quantiles (10% / 90% for IDA/contact; 10% / 90% or 1% / 99% for PIA)
 ```
 
 **After**:

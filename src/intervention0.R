@@ -5,7 +5,7 @@
 # This script evaluates the effectiveness of different intervention strategies
 # for HIV cluster detection and response. It processes simulated epidemic data
 # to compare how various cluster prioritization methods perform in terms of:
-#   - Person-days of Untreated infection Averted (PUTA)
+#   - Infectious Days Averted (IDA)
 #   - Potential Infections Averted (PIA)
 #   - Contact tracing efficiency
 #
@@ -23,8 +23,8 @@
 #                           timesequenced, Fdegree, Gdegree, Hdegree, simid
 #
 # Output metrics:
-#   - PUTA: Person-days of untreated infection averted by intervention
-#   - PUTA/contact: Efficiency metric (PUTA per contact traced)
+#   - IDA: Infectious days averted by intervention
+#   - IDA/contact: Efficiency metric (IDA per contact traced)
 #   - PIA: Number of potential infections averted
 #   - Contacts: Number of individuals requiring follow-up (contact tracing burden)
 #
@@ -43,7 +43,7 @@ library(ggplot2)
 library(rlang)  # For .data pronoun in ggplot2 aes()
 
 # Suppress R CMD check notes for ggplot2 non-standard evaluation
-utils::globalVariables(c("nc", "strategy", "puta_eff_small", "puta_eff_large", 
+utils::globalVariables(c("nc", "strategy", "ida_eff_small", "ida_eff_large",
                          "pia_eff_small", "pia_eff_large"))
 
 # -----------------------------------------------------------------------------
@@ -261,7 +261,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0, 0, 0), total_contacts = 0)
+             ida = c(0, 0, 0, 0, 0), pia = c(0, 0, 0, 0, 0), total_contacts = 0)
       }
     )
     cat(" done (", orand$n_units, " units)\n", sep = "")
@@ -278,7 +278,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0, 0, 0), total_contacts = 0)
+             ida = c(0, 0, 0, 0, 0), pia = c(0, 0, 0, 0, 0), total_contacts = 0)
       }
     )
     cat(" done (", orita$n_units, " units)\n", sep = "")
@@ -295,7 +295,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta = c(0, 0, 0, 0, 0), pia = c(0, 0, 0, 0, 0), total_contacts = 0)
+             ida = c(0, 0, 0, 0, 0), pia = c(0, 0, 0, 0, 0), total_contacts = 0)
       }
     )
     cat(" done (", onet$n_units, " units)\n", sep = "")
@@ -312,7 +312,7 @@ run_intervention_analysis <- function(
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
-        list(o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0),
+        list(o = data.frame(pia = numeric(0), ida = numeric(0), interventiontime = numeric(0),
                            nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
                            contacts_small = numeric(0), contacts_large = numeric(0)),
              propintervened = 0, n_units = 0,
@@ -333,15 +333,15 @@ run_intervention_analysis <- function(
     # Individual-based strategies get 1 row (subnetwork = "-")
     
     # Helper to build a row for each strategy+subnetwork combination
-    # puta_vec and pia_vec both have 5 elements: Total, Mean/contact, Median, Low, High
-    build_row <- function(strategy_name, subnetwork, contacts, puta_vec, pia_vec) {
+    # ida_vec and pia_vec both have 5 elements: Total, Mean/contact, Median, Low, High
+    build_row <- function(strategy_name, subnetwork, contacts, ida_vec, pia_vec) {
       c(Strategy = strategy_name, Subnetwork = subnetwork,
         Contacts = contacts, 
-        Total_PUTA = puta_vec[1], 
-        `PUTA/contact` = puta_vec[2],
-        Median_PUTA = puta_vec[3], 
-        Low_PUTA = puta_vec[4], 
-        High_PUTA = puta_vec[5],
+        Total_PUTA = ida_vec[1], 
+        `IDA/contact` = ida_vec[2],
+        Median_PUTA = ida_vec[3], 
+        Low_PUTA = ida_vec[4], 
+        High_PUTA = ida_vec[5],
         Total_PIA = pia_vec[1], 
         `PIA/contact` = pia_vec[2],
         Median_PIA = pia_vec[3],
@@ -353,28 +353,28 @@ run_intervention_analysis <- function(
     rows <- list(
       # Size=5: small and large rows
       build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "small",
-                ods5$total_contacts_small, ods5$puta_small, ods5$pia_small),
+                ods5$total_contacts_small, ods5$ida_small, ods5$pia_small),
       build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "large",
-                ods5$total_contacts_large, ods5$puta_large, ods5$pia_large),
+                ods5$total_contacts_large, ods5$ida_large, ods5$pia_large),
       # Size=2: small and large rows
       build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "small",
-                ods2$total_contacts_small, ods2$puta_small, ods2$pia_small),
+                ods2$total_contacts_small, ods2$ida_small, ods2$pia_small),
       build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "large",
-                ods2$total_contacts_large, ods2$puta_large, ods2$pia_large),
+                ods2$total_contacts_large, ods2$ida_large, ods2$pia_large),
       # Growth: small and large rows
       build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "small",
-                ogrowth$total_contacts_small, ogrowth$puta_small, ogrowth$pia_small),
+                ogrowth$total_contacts_small, ogrowth$ida_small, ogrowth$pia_small),
       build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "large",
-                ogrowth$total_contacts_large, ogrowth$puta_large, ogrowth$pia_large),
+                ogrowth$total_contacts_large, ogrowth$ida_large, ogrowth$pia_large),
       # Individual-based strategies: single row each (subnetwork = NA)
-      build_row(paste0('Random,', round(100*random_coverage), '%'), "-", orand$total_contacts, orand$puta, orand$pia),
-      build_row('RITA', "-", orita$total_contacts, orita$puta, orita$pia),
-      build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$puta, onet$pia),
+      build_row(paste0('Random,', round(100*random_coverage), '%'), "-", orand$total_contacts, orand$ida, orand$pia),
+      build_row('RITA', "-", orita$total_contacts, orita$ida, orita$pia),
+      build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$ida, onet$pia),
       # RITA+Secondary: cluster-based (small and large rows)
       build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "small",
-                oritasec$total_contacts_small, oritasec$puta_small, oritasec$pia_small),
+                oritasec$total_contacts_small, oritasec$ida_small, oritasec$pia_small),
       build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "large",
-                oritasec$total_contacts_large, oritasec$puta_large, oritasec$pia_large)
+                oritasec$total_contacts_large, oritasec$ida_large, oritasec$pia_large)
     )
 
     # Use incremental rbind instead of do.call(rbind, rows)
@@ -386,12 +386,12 @@ run_intervention_analysis <- function(
     odf <- as.data.frame(odf_mat, stringsAsFactors = FALSE)
     
     # Convert numeric columns from character
-    num_cols <- c("Contacts", "Total_PUTA", "PUTA/contact", "Median_PUTA", "Low_PUTA", "High_PUTA",
+    num_cols <- c("Contacts", "Total_IDA", "IDA/contact", "Median_IDA", "Low_IDA", "High_IDA",
                   "Total_PIA", "PIA/contact", "Median_PIA", "Low_PIA", "High_PIA")
     odf[num_cols] <- lapply(odf[num_cols], as.numeric)
     odf1 <- odf
-    # Round PUTA metrics to 0dp, PIA per-contact metrics to 2dp
-    cols_0dp <- c("Contacts", "Total_PUTA", "PUTA/contact", "Median_PUTA", "Low_PUTA", "High_PUTA", "Total_PIA")
+    # Round IDA metrics to 0dp, PIA per-contact metrics to 2dp
+    cols_0dp <- c("Contacts", "Total_IDA", "IDA/contact", "Median_IDA", "Low_IDA", "High_IDA", "Total_PIA")
     cols_2dp <- c("PIA/contact", "Median_PIA", "Low_PIA", "High_PIA")
     odf1[cols_0dp] <- lapply(odf1[cols_0dp], function(x) round(x, 0))
     odf1[cols_2dp] <- lapply(odf1[cols_2dp], function(x) round(x, 2))
@@ -660,7 +660,7 @@ run_intervention_analysis <- function(
 #' @param analysis_delay_days Fixed delay (days) for cluster analysis after detection
 #' @param implementation_delay_days Fixed delay (days) for intervention implementation
 #'
-#' @return Named vector: pia, puta, interventiontime, nc, sum_degrees,
+#' @return Named vector: pia, ida, interventiontime, nc, sum_degrees,
 #'         sum_excess, contacts_small, contacts_large
 proc_cluster <- function(
     D, G, 
@@ -746,14 +746,14 @@ proc_cluster <- function(
   }
   
   # -------------------------------------------------------------------------
-  # Step 4: Calculate intervention outcomes (PIA and PUTA)
+  # Step 4: Calculate intervention outcomes (PIA and IDA)
   # -------------------------------------------------------------------------
   # PIA: Potential Infections Averted - infections that occur after IT
-  # PUTA: Person-years Untreated Averted - time between IT and diagnosis
+  # IDA: Infectious Days Averted - time between IT and diagnosis
   #       for people infected before IT but not yet diagnosed
   
   pia <- 0 
-  puta <- 0 
+  ida <- 0 
   
   # Calculate transmissions from and to cluster members
   if (!is.infinite( IT ) )
@@ -768,13 +768,13 @@ proc_cluster <- function(
     # PIA: count infections occurring after intervention time
     pia <- sum( G2$timeinfected  > IT )
     
-    # PUTA: sum of (diagnosis time - IT) for those infected before IT
+    # IDA: sum of (diagnosis time - IT) for those infected before IT
     #       but diagnosed after IT
     G3   <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT , ]
-    puta <- sum( G3$timediagnosed - IT )
+    ida <- sum( G3$timediagnosed - IT )
   }
   
-  c(pia = pia, puta = puta, interventiontime = IT, nc = nrow(G1), 
+  c(pia = pia, ida = ida, interventiontime = IT, nc = nrow(G1), 
     sum_degrees = sum_degrees, sum_excess = sum_excess,
     contacts_small = contacts_small, contacts_large = contacts_large)
 }
@@ -820,7 +820,7 @@ distsize_intervention <- function(
       )
     }, error = function(e) {
       # Return default values if processing fails
-      c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, 
+      c(pia = 0, ida = 0, interventiontime = Inf, nc = 0, 
         sum_degrees = 0, sum_excess = 0, contacts_small = 0, contacts_large = 0)
     })
   })
@@ -831,7 +831,7 @@ distsize_intervention <- function(
   # Attach simulation identifiers for traceability
   simids_vec <- names(Ds)
   odf$simid <- if (!is.null(simids_vec)) simids_vec else seq_len(nrow(odf))
-  odf <- odf[, c("simid", "pia", "puta", "interventiontime", "nc",
+  odf <- odf[, c("simid", "pia", "ida", "interventiontime", "nc",
                  "sum_degrees", "sum_excess", "contacts_small", "contacts_large")]
 
   # Coerce columns to numeric (in case they came through as character from rbind)
@@ -854,7 +854,7 @@ distsize_intervention <- function(
   # Handle case where no clusters were found
   if (nrow(odf1) == 0) {
     return(list(
-      o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0), 
+      o = data.frame(pia = numeric(0), ida = numeric(0), interventiontime = numeric(0), 
                      nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
@@ -873,17 +873,17 @@ distsize_intervention <- function(
   # -------------------------------------------------------------------------
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
 
-  # PUTA efficiency for small subnetwork assumption
-  e_puta_small <- odf1$puta / odf1$contacts_small
+  # IDA efficiency for small subnetwork assumption
+  e_puta_small <- odf1$ida / odf1$contacts_small
   e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
-  med_puta_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
-  q_puta_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  med_ida_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
+  q_ida_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
-  # PUTA efficiency for large subnetwork assumption
-  e_puta_large <- odf1$puta / odf1$contacts_large
+  # IDA efficiency for large subnetwork assumption
+  e_puta_large <- odf1$ida / odf1$contacts_large
   e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
-  med_puta_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
-  q_puta_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  med_ida_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
+  q_ida_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # PIA efficiency for small subnetwork assumption
   e_pia_small <- odf1$pia / odf1$contacts_small
@@ -902,16 +902,16 @@ distsize_intervention <- function(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     n_units = nrow(odf1),
-    puta_small = c(sum(odf1$puta),
-         if (sum(odf1$contacts_small) > 0) sum(odf1$puta) / sum(odf1$contacts_small) else NA_real_,
-         med_puta_small,
-         q_puta_small[1],
-         q_puta_small[2]),
-    puta_large = c(sum(odf1$puta),
-         if (sum(odf1$contacts_large) > 0) sum(odf1$puta) / sum(odf1$contacts_large) else NA_real_,
-         med_puta_large,
-         q_puta_large[1],
-         q_puta_large[2]),
+    puta_small = c(sum(odf1$ida),
+         if (sum(odf1$contacts_small) > 0) sum(odf1$ida) / sum(odf1$contacts_small) else NA_real_,
+         med_ida_small,
+         q_ida_small[1],
+         q_ida_small[2]),
+    puta_large = c(sum(odf1$ida),
+         if (sum(odf1$contacts_large) > 0) sum(odf1$ida) / sum(odf1$contacts_large) else NA_real_,
+         med_ida_large,
+         q_ida_large[1],
+         q_ida_large[2]),
     pia_small = c(sum(odf1$pia),
          if (sum(odf1$contacts_small) > 0) sum(odf1$pia) / sum(odf1$contacts_small) else NA_real_,
          med_pia_small,
@@ -991,7 +991,7 @@ growthrate_intervention <- function(
     # Exclude seed (generation 0) and last generation (not yet observable)
     Gtrig <- Gcluster[Gcluster$generation > 0 & Gcluster$generation != lastgeneration, ]
     if (nrow(Gtrig) == 0) {
-      return(c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, 
+      return(c(pia = 0, ida = 0, interventiontime = Inf, nc = 0, 
                sum_degrees = 0, sum_excess = 0, contacts_small = 0, contacts_large = 0))
     }
 
@@ -999,7 +999,7 @@ growthrate_intervention <- function(
     # cases are SEQUENCED within lookback_days window
     t <- suppressWarnings(as.numeric(Gtrig$timesequenced))
     if (all(!is.finite(t))) {
-      return(c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, 
+      return(c(pia = 0, ida = 0, interventiontime = Inf, nc = 0, 
                sum_degrees = 0, sum_excess = 0, contacts_small = 0, contacts_large = 0))
     }
     # Keep only finite sequencing times for windowing
@@ -1068,9 +1068,9 @@ growthrate_intervention <- function(
       contacts_large <- sum_degrees - (n1 - 2)
     }
 
-    # Calculate PIA/PUTA (same logic as distsize)
+    # Calculate PIA/IDA (same logic as distsize)
     pia <- 0
-    puta <- 0
+    ida <- 0
     if (is.finite(IT) && nrow(G1) > 0) {
       piapids <- D$recipient[D$donor %in% G1$pid] |>
         union(G1$pid) |>
@@ -1078,10 +1078,10 @@ growthrate_intervention <- function(
       G2 <- G[G$pid %in% piapids, ]
       pia <- sum(G2$timeinfected > IT)
       G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-      puta <- sum(G3$timediagnosed - IT)
+      ida <- sum(G3$timediagnosed - IT)
     }
 
-    c(pia = pia, puta = puta, interventiontime = IT, nc = nrow(G1), 
+    c(pia = pia, ida = ida, interventiontime = IT, nc = nrow(G1), 
       sum_degrees = sum_degrees, sum_excess = sum_excess,
       contacts_small = contacts_small, contacts_large = contacts_large)
   }
@@ -1091,7 +1091,7 @@ growthrate_intervention <- function(
     tryCatch({
       process_one(Ds[[i]], Gs[[i]])
     }, error = function(e) {
-      c(pia = 0, puta = 0, interventiontime = Inf, nc = 0, 
+      c(pia = 0, ida = 0, interventiontime = Inf, nc = 0, 
         sum_degrees = 0, sum_excess = 0, contacts_small = 0, contacts_large = 0)
     })
   })
@@ -1099,7 +1099,7 @@ growthrate_intervention <- function(
   odf <- do.call(rbind, o) |> as.data.frame()
   simids_vec <- names(Ds)
   odf$simid <- if (!is.null(simids_vec)) simids_vec else seq_len(nrow(odf))
-  odf <- odf[, c("simid", "pia", "puta", "interventiontime", "nc", 
+  odf <- odf[, c("simid", "pia", "ida", "interventiontime", "nc", 
                  "sum_degrees", "sum_excess", "contacts_small", "contacts_large")]
 
   # Coerce columns to numeric
@@ -1119,7 +1119,7 @@ growthrate_intervention <- function(
   # Handle case where no clusters triggered
   if (nrow(odf1) == 0) {
     return(list(
-      o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0),
+      o = data.frame(pia = numeric(0), ida = numeric(0), interventiontime = numeric(0),
                      nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
@@ -1138,17 +1138,17 @@ growthrate_intervention <- function(
   # -------------------------------------------------------------------------
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
 
-  # PUTA efficiency for small subnetwork
-  e_puta_small <- odf1$puta / odf1$contacts_small
+  # IDA efficiency for small subnetwork
+  e_puta_small <- odf1$ida / odf1$contacts_small
   e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
-  med_puta_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
-  q_puta_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  med_ida_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
+  q_ida_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
-  # PUTA efficiency for large subnetwork
-  e_puta_large <- odf1$puta / odf1$contacts_large
+  # IDA efficiency for large subnetwork
+  e_puta_large <- odf1$ida / odf1$contacts_large
   e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
-  med_puta_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
-  q_puta_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  med_ida_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
+  q_ida_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # PIA efficiency for small subnetwork
   e_pia_small <- odf1$pia / odf1$contacts_small
@@ -1166,16 +1166,16 @@ growthrate_intervention <- function(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     n_units = nrow(odf1),
-    puta_small = c(sum(odf1$puta),
-         if (sum(odf1$contacts_small) > 0) sum(odf1$puta) / sum(odf1$contacts_small) else NA_real_,
-         med_puta_small,
-         q_puta_small[1],
-         q_puta_small[2]),
-    puta_large = c(sum(odf1$puta),
-         if (sum(odf1$contacts_large) > 0) sum(odf1$puta) / sum(odf1$contacts_large) else NA_real_,
-         med_puta_large,
-         q_puta_large[1],
-         q_puta_large[2]),
+    puta_small = c(sum(odf1$ida),
+         if (sum(odf1$contacts_small) > 0) sum(odf1$ida) / sum(odf1$contacts_small) else NA_real_,
+         med_ida_small,
+         q_ida_small[1],
+         q_ida_small[2]),
+    puta_large = c(sum(odf1$ida),
+         if (sum(odf1$contacts_large) > 0) sum(odf1$ida) / sum(odf1$contacts_large) else NA_real_,
+         med_ida_large,
+         q_ida_large[1],
+         q_ida_large[2]),
     pia_small = c(sum(odf1$pia),
          if (sum(odf1$contacts_small) > 0) sum(odf1$pia) / sum(odf1$contacts_small) else NA_real_,
          med_pia_small,
@@ -1208,7 +1208,7 @@ growthrate_intervention <- function(
 #' @param partner_notification_window_months Lookback window: 3 or 6 months (default: 6)
 #'
 #' @return List with: o (detailed results), propintervened (NA for random),
-#'         n_units, puta, pia, total_contacts
+#'         n_units, ida, pia, total_contacts
 random_intervention <- function(Dall, Gall, random_sample_size, implementation_delay_days,
                                 partner_notification_window_months = 6)
 {
@@ -1219,10 +1219,10 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
     
     if (nrow(G1) == 0) {
       return(list(
-        o = data.frame(pia = numeric(0), puta = numeric(0)),
+        o = data.frame(pia = numeric(0), ida = numeric(0)),
         propintervened = 0,
         n_units = 0,
-        puta = c(0, 0, 0, 0, 0),
+        ida = c(0, 0, 0, 0, 0),
         pia = c(0, 0, 0, 0, 0),
         total_contacts = 0
       ))
@@ -1258,22 +1258,22 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
       pia <- sum( G2$timeinfected > IT )
       
       G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-      puta <- sum( G3$timediagnosed - IT )
+      ida <- sum( G3$timediagnosed - IT )
       
       # Contacts = total_contacts + 1 (self)
-      c( pia, puta, total_contacts + 1 )
+      c( pia, ida, total_contacts + 1 )
     }
     
     mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts ) -> o
     o <- as.data.frame( t( o ) )
-    colnames(o) <- c('pia', 'puta', 'contacts' )
+    colnames(o) <- c('pia', 'ida', 'contacts' )
 
     # Compute summary statistics (same structure as cluster-based)
     # Quantiles: 10th and 90th percentiles used uniformly for all metrics
-    e_puta_percontact <- o$puta / o$contacts
-    e_puta_valid <- e_puta_percontact[is.finite(e_puta_percontact) & !is.na(e_puta_percontact)]
-    med_puta <- if (length(e_puta_valid) > 0) median(e_puta_valid) else NA_real_
-    q_puta <- if (length(e_puta_valid) > 0) quantile(e_puta_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+    e_ida_percontact <- o$ida / o$contacts
+    e_ida_valid <- e_ida_percontact[is.finite(e_ida_percontact) & !is.na(e_ida_percontact)]
+    med_ida <- if (length(e_ida_valid) > 0) median(e_ida_valid) else NA_real_
+    q_ida <- if (length(e_ida_valid) > 0) quantile(e_ida_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
     
     e_pia_percontact <- o$pia / o$contacts
     e_pia_valid <- e_pia_percontact[is.finite(e_pia_percontact) & !is.na(e_pia_percontact)]
@@ -1284,11 +1284,11 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
       o = o,
       propintervened = NA,  # Not applicable for random selection
       n_units = nrow(o),
-      puta = c(sum(o$puta),
-               sum(o$puta) / sum(o$contacts),
-               med_puta,
-               q_puta[1],
-               q_puta[2]),
+      ida = c(sum(o$ida),
+               sum(o$ida) / sum(o$contacts),
+               med_ida,
+               q_ida[1],
+               q_ida[2]),
       pia = c(sum(o$pia),
               sum(o$pia) / sum(o$contacts),
               med_pia,
@@ -1333,10 +1333,10 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
     
     if (nrow(G1) == 0) {
       return(list(
-        o = data.frame(pia = numeric(0), puta = numeric(0), contacts = numeric(0)),
+        o = data.frame(pia = numeric(0), ida = numeric(0), contacts = numeric(0)),
         propintervened = 0,
         n_units = 0,
-        puta = c(0, 0, 0, 0, 0),
+        ida = c(0, 0, 0, 0, 0),
         pia = c(0, 0, 0, 0, 0),
         total_contacts = 0
       ))
@@ -1367,9 +1367,9 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
       pia <- sum(G2$timeinfected > IT)
       
       G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-      puta <- sum(G3$timediagnosed - IT)
+      ida <- sum(G3$timediagnosed - IT)
       
-      c(pia, puta, total_contacts + 1)
+      c(pia, ida, total_contacts + 1)
     }
     
     # Process all RITA-positive cases
@@ -1379,14 +1379,14 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
     }
     
     o <- as.data.frame(results)
-    colnames(o) <- c('pia', 'puta', 'contacts')
+    colnames(o) <- c('pia', 'ida', 'contacts')
 
     # Compute summary statistics (same structure as cluster-based)
     # Quantiles: 10th and 90th percentiles used uniformly for all metrics
-    e_puta_percontact <- o$puta / o$contacts
-    e_puta_valid <- e_puta_percontact[is.finite(e_puta_percontact) & !is.na(e_puta_percontact)]
-    med_puta <- if (length(e_puta_valid) > 0) median(e_puta_valid) else NA_real_
-    q_puta <- if (length(e_puta_valid) > 0) quantile(e_puta_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+    e_ida_percontact <- o$ida / o$contacts
+    e_ida_valid <- e_ida_percontact[is.finite(e_ida_percontact) & !is.na(e_ida_percontact)]
+    med_ida <- if (length(e_ida_valid) > 0) median(e_ida_valid) else NA_real_
+    q_ida <- if (length(e_ida_valid) > 0) quantile(e_ida_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
     
     e_pia_percontact <- o$pia / o$contacts
     e_pia_valid <- e_pia_percontact[is.finite(e_pia_percontact) & !is.na(e_pia_percontact)]
@@ -1397,11 +1397,11 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
       o = o,
       propintervened = NA,  # Not directly comparable to cluster-based
       n_units = nrow(o),
-      puta = c(sum(o$puta),
-               sum(o$puta) / sum(o$contacts),
-               med_puta,
-               q_puta[1],
-               q_puta[2]),
+      ida = c(sum(o$ida),
+               sum(o$ida) / sum(o$contacts),
+               med_ida,
+               q_ida[1],
+               q_ida[2]),
       pia = c(sum(o$pia),
               sum(o$pia) / sum(o$contacts),
               med_pia,
@@ -1460,10 +1460,10 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
     
     if (nrow(G1) == 0) {
       return(list(
-        o = data.frame(pia = numeric(0), puta = numeric(0), contacts = numeric(0)),
+        o = data.frame(pia = numeric(0), ida = numeric(0), contacts = numeric(0)),
         propintervened = 0,
         n_units = 0,
-        puta = c(0, 0, 0, 0, 0),
+        ida = c(0, 0, 0, 0, 0),
         pia = c(0, 0, 0, 0, 0),
         total_contacts = 0
       ))
@@ -1481,21 +1481,21 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
       pia <- sum(G2$timeinfected > IT)
       
       G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-      puta <- sum(G3$timediagnosed - IT)
+      ida <- sum(G3$timediagnosed - IT)
       
-      c(pia, puta, total_contacts + 1)  # +1 for the index case
+      c(pia, ida, total_contacts + 1)  # +1 for the index case
     }
     
     mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts) -> o
     o <- as.data.frame(t(o))
-    colnames(o) <- c('pia', 'puta', 'contacts')
+    colnames(o) <- c('pia', 'ida', 'contacts')
 
     # Compute summary statistics (same structure as cluster-based)
     # Quantiles: 10th and 90th percentiles used uniformly for all metrics
-    e_puta_percontact <- o$puta / o$contacts
-    e_puta_valid <- e_puta_percontact[is.finite(e_puta_percontact) & !is.na(e_puta_percontact)]
-    med_puta <- if (length(e_puta_valid) > 0) median(e_puta_valid) else NA_real_
-    q_puta <- if (length(e_puta_valid) > 0) quantile(e_puta_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+    e_ida_percontact <- o$ida / o$contacts
+    e_ida_valid <- e_ida_percontact[is.finite(e_ida_percontact) & !is.na(e_ida_percontact)]
+    med_ida <- if (length(e_ida_valid) > 0) median(e_ida_valid) else NA_real_
+    q_ida <- if (length(e_ida_valid) > 0) quantile(e_ida_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
     
     e_pia_percontact <- o$pia / o$contacts
     e_pia_valid <- e_pia_percontact[is.finite(e_pia_percontact) & !is.na(e_pia_percontact)]
@@ -1506,11 +1506,11 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
       o = o,
       propintervened = NA,  # Not directly comparable to cluster-based
       n_units = nrow(o),
-      puta = c(sum(o$puta),
-               sum(o$puta) / sum(o$contacts),
-               med_puta,
-               q_puta[1],
-               q_puta[2]),
+      ida = c(sum(o$ida),
+               sum(o$ida) / sum(o$contacts),
+               med_ida,
+               q_ida[1],
+               q_ida[2]),
       pia = c(sum(o$pia),
               sum(o$pia) / sum(o$contacts),
               med_pia,
@@ -1562,7 +1562,7 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
 
   if (nrow(G_rita) == 0) {
     return(list(
-      o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0),
+      o = data.frame(pia = numeric(0), ida = numeric(0), interventiontime = numeric(0),
                      nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
@@ -1686,8 +1686,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     # Total unique contacts ≈ max individual contact list
     contacts_large <- max(network_contacts, 0)
 
-    # Calculate PIA and PUTA for network
-    # PIA/PUTA scope: network members + their transmission partners
+    # Calculate PIA and IDA for network
+    # PIA/IDA scope: network members + their transmission partners
     # (Following cluster-based strategy pattern)
     piapids <- network
     for (pid in network) {
@@ -1702,14 +1702,14 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     # PIA: Infections that occurred AFTER intervention time
     pia <- sum(G2$timeinfected > IT)
 
-    # PUTA: Person-years of untreated infection averted
+    # IDA: Infectious days averted
     # (People infected before IT but diagnosed after IT)
     G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-    puta <- sum(G3$timediagnosed - IT)
+    ida <- sum(G3$timediagnosed - IT)
 
     results[[i]] <- data.frame(
       pia = pia,
-      puta = puta,
+      ida = ida,
       interventiontime = IT,
       nc = length(network),
       sum_degrees = NA_real_,  # Not applicable to RITA+Secondary
@@ -1745,17 +1745,17 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
   # Compute summary statistics (matching cluster-based strategies)
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
 
-  # PUTA efficiency for small subnetwork
-  e_puta_small <- odf$puta / odf$contacts_small
+  # IDA efficiency for small subnetwork
+  e_puta_small <- odf$ida / odf$contacts_small
   e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
-  med_puta_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
-  q_puta_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  med_ida_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
+  q_ida_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
-  # PUTA efficiency for large subnetwork
-  e_puta_large <- odf$puta / odf$contacts_large
+  # IDA efficiency for large subnetwork
+  e_puta_large <- odf$ida / odf$contacts_large
   e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
-  med_puta_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
-  q_puta_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  med_ida_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
+  q_ida_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # PIA efficiency for small subnetwork
   e_pia_small <- odf$pia / odf$contacts_small
@@ -1774,16 +1774,16 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     o = odf,
     propintervened = nrow(odf) / nrow(Gall[Gall$generation > 0 & Gall$generation < lastgeneration, ]),
     n_units = nrow(odf),
-    puta_small = c(sum(odf$puta),
-         if (sum(odf$contacts_small) > 0) sum(odf$puta) / sum(odf$contacts_small) else NA_real_,
-         med_puta_small,
-         q_puta_small[1],
-         q_puta_small[2]),
-    puta_large = c(sum(odf$puta),
-         if (sum(odf$contacts_large) > 0) sum(odf$puta) / sum(odf$contacts_large) else NA_real_,
-         med_puta_large,
-         q_puta_large[1],
-         q_puta_large[2]),
+    puta_small = c(sum(odf$ida),
+         if (sum(odf$contacts_small) > 0) sum(odf$ida) / sum(odf$contacts_small) else NA_real_,
+         med_ida_small,
+         q_ida_small[1],
+         q_ida_small[2]),
+    puta_large = c(sum(odf$ida),
+         if (sum(odf$contacts_large) > 0) sum(odf$ida) / sum(odf$contacts_large) else NA_real_,
+         med_ida_large,
+         q_ida_large[1],
+         q_ida_large[2]),
     pia_small = c(sum(odf$pia),
          if (sum(odf$contacts_small) > 0) sum(odf$pia) / sum(odf$contacts_small) else NA_real_,
          med_pia_small,

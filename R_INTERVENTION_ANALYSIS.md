@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The R code in `intervention0.R` and `plot_interventions.R` implements a comprehensive comparison of 6 HIV cluster-based intervention strategies, computing **PUTA** (Person-years Untreated Averted) and **PIA** (Potential Infections Averted) for each approach.
+The R code in `intervention0.R` and `plot_interventions.R` implements a comprehensive comparison of 6 HIV cluster-based intervention strategies, computing **IDA** (Infectious Days Averted) and **PIA** (Potential Infections Averted) for each approach.
 
 **Status**: ✅ Code is well-structured and **now fully matches README documentation** after recent updates (see CHANGES_IMPLEMENTED.md).
 
@@ -12,12 +12,12 @@ The R code in `intervention0.R` and `plot_interventions.R` implements a comprehe
 
 ### Core Outcomes
 
-#### 1. **PUTA (Person-years of Untreated infection Averted)**
+#### 1. **IDA (Infectious Days Averted)**
 **Definition**: Time between intervention and diagnosis for people infected before intervention but diagnosed after.
 
 **Formula**:
 ```r
-PUTA = sum(timediagnosed - IT)  # for people with: timeinfected ≤ IT < timediagnosed
+IDA = sum(timediagnosed - IT)  # for people with: timeinfected ≤ IT < timediagnosed
 ```
 
 **Interpretation**: Person-years of infectious period prevented by earlier detection/treatment.
@@ -121,7 +121,7 @@ for i in 1:n:
 
 ### Summary Statistics (5-element vector)
 
-For each strategy and metric (PUTA, PIA):
+For each strategy and metric (IDA, PIA):
 
 | Element | Meaning | Code Location |
 |---------|---------|---------------|
@@ -156,7 +156,7 @@ For each strategy and metric (PUTA, PIA):
 2. **Parameter names**: ✅ All renamed parameters match (distance_threshold, cluster_size, etc.)
 3. **Seed handling**: ✅ Optional seed with system time default
 4. **Error handling**: ✅ tryCatch wraps each strategy
-5. **PIA/PUTA scope**: ✅ Broader scope (donors + recipients + members)
+5. **PIA/IDA scope**: ✅ Broader scope (donors + recipients + members)
 6. **Contact modeling**: ✅ Small/large subnetwork assumptions
 7. **Output structure**: ✅ Matches described columns
 
@@ -202,7 +202,7 @@ All previously identified issues have been fixed. The code is now fully aligned 
 
 ## Critical Calculations
 
-### PUTA Calculation (Example from line 668)
+### IDA Calculation (Example from line 668)
 
 ```r
 # People infected BEFORE IT but diagnosed AFTER IT
@@ -217,7 +217,7 @@ puta <- sum(G3$timediagnosed - IT)
 **Example**:
 - Person A infected at day 100, would have been diagnosed at day 300
 - Intervention at day 200
-- PUTA = 300 - 200 = 100 person-days averted
+- IDA = 300 - 200 = 100 person-days averted
 
 ### PIA Calculation (Example from line 663)
 
@@ -256,7 +256,7 @@ Aggregate results
    ↓
 plot_efficiency_distributions()
    ↓
-efficiency_distributions_violin.pdf (4 panels: PUTA/PIA × small/large subnetworks)
+efficiency_distributions_violin.pdf (4 panels: IDA/PIA × small/large subnetworks)
 ```
 
 ---

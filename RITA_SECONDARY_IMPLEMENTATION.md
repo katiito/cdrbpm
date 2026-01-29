@@ -263,8 +263,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     # Total unique contacts ≈ max individual contact list
     contacts_large <- max(network_contacts, 0)
 
-    # Calculate PIA and PUTA for network
-    # PIA/PUTA scope: network members + their transmission partners
+    # Calculate PIA and IDA for network
+    # PIA/IDA scope: network members + their transmission partners
     # (Following cluster-based strategy pattern)
     piapids <- network
     for (pid in network) {
@@ -279,7 +279,7 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     # PIA: Infections that occurred AFTER intervention time
     pia <- sum(G2$timeinfected > IT)
 
-    # PUTA: Person-years of untreated infection averted
+    # IDA: Person-years of untreated infection averted
     # (People infected before IT but diagnosed after IT)
     G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
     puta <- sum(G3$timediagnosed - IT)
@@ -298,13 +298,13 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
   # Compute summary statistics (matching cluster-based strategies)
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
 
-  # PUTA efficiency for small subnetwork
+  # IDA efficiency for small subnetwork
   e_puta_small <- odf$puta / odf$contacts_small
   e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
   med_puta_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
   q_puta_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
-  # PUTA efficiency for large subnetwork
+  # IDA efficiency for large subnetwork
   e_puta_large <- odf$puta / odf$contacts_large
   e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
   med_puta_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
@@ -469,8 +469,8 @@ Based on the strategy design:
 | Mean offspring (Panel C) | 0.29 | ~0.8-1.2 | Higher (includes donor + siblings) |
 | % Undiagnosed donor (Panel A) | 84% | ~70-80% | Slightly lower (diluted by secondary contacts) |
 | % Preventable (Panel B) | 38% | ~20-30% | Lower (mixed early + later cases) |
-| PUTA efficiency | High | Medium | Lower (more contacts per unit) |
-| Total PUTA | Medium | High | Higher (more people intervened on) |
+| IDA efficiency | High | Medium | Lower (more contacts per unit) |
+| Total IDA | Medium | High | Higher (more people intervened on) |
 
 ---
 

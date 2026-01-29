@@ -14,9 +14,9 @@
 # =============================================================================
 # plot_efficiency_distributions
 # =============================================================================
-#' Plot distributions of PUTA and PIA efficiency across intervention strategies
+#' Plot distributions of IDA and PIA efficiency across intervention strategies
 #' 
-#' Creates 4 plots showing PUTA and PIA efficiency distributions under small 
+#' Creates 4 plots showing IDA and PIA efficiency distributions under small 
 #' and large subnetwork assumptions for all 6 intervention strategies.
 #' Uses violin plots with pseudo-log scale to handle outliers.
 #' Strategies are displayed as rows (horizontal orientation).
@@ -84,13 +84,13 @@ plot_efficiency_distributions <- function(results,
   }
   
   # Compute efficiencies
-  df$puta_eff_small <- df$puta / df$contacts_small
-  df$puta_eff_large <- df$puta / df$contacts_large
+  df$ida_eff_small <- df$puta / df$contacts_small
+  df$ida_eff_large <- df$puta / df$contacts_large
   df$pia_eff_small <- df$pia / df$contacts_small
   df$pia_eff_large <- df$pia / df$contacts_large
   
   # Remove invalid values
-  df <- df[is.finite(df$puta_eff_small) & is.finite(df$puta_eff_large) &
+  df <- df[is.finite(df$ida_eff_small) & is.finite(df$ida_eff_large) &
            is.finite(df$pia_eff_small) & is.finite(df$pia_eff_large), ]
   
   # Set factor levels for ordering (reversed so top-to-bottom matches desired order)
@@ -111,7 +111,7 @@ plot_efficiency_distributions <- function(results,
   # asinh(x) ≈ x for small x, and ≈ sign(x)*log(2|x|) for large |x|
   # Scale factor adjusts the transition point - higher = more expansion near zero
   
-  # PUTA transformation (lower scale to show more detail at higher values)
+  # IDA transformation (lower scale to show more detail at higher values)
   puta_scale <- 0.5
   puta_trans <- scales::trans_new(
     name = "puta_pseudo_log",
@@ -136,9 +136,9 @@ plot_efficiency_distributions <- function(results,
       plot.title = element_text(size = 11, face = "bold")
     )
   
-  # PUTA plots with pseudo-log scale (horizontal orientation)
+  # IDA plots with pseudo-log scale (horizontal orientation)
   # Extended tick marks to show full range
-  p1 <- ggplot(df, aes(x = strategy, y = puta_eff_small, fill = strategy)) +
+  p1 <- ggplot(df, aes(x = strategy, y = ida_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     # Add centile range (2.5th to 97.5th percentile)
     stat_summary(fun.data = function(x) {
@@ -157,12 +157,12 @@ plot_efficiency_distributions <- function(results,
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
     coord_flip() +
-    labs(y = "PUTA per contact", x = "",
-         title = paste0(title_prefix, "PUTA (Small Subnetwork)")) +
+    labs(y = "IDA per contact", x = "",
+         title = paste0(title_prefix, "IDA (Small Subnetwork)")) +
     scale_fill_manual(values = strategy_colors) +
     common_theme
   
-  p2 <- ggplot(df, aes(x = strategy, y = puta_eff_large, fill = strategy)) +
+  p2 <- ggplot(df, aes(x = strategy, y = ida_eff_large, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
     # Add centile range (2.5th to 97.5th percentile)
     stat_summary(fun.data = function(x) {
@@ -181,8 +181,8 @@ plot_efficiency_distributions <- function(results,
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
     coord_flip() +
-    labs(y = "PUTA per contact", x = "",
-         title = paste0(title_prefix, "PUTA (Large Subnetwork)")) +
+    labs(y = "IDA per contact", x = "",
+         title = paste0(title_prefix, "IDA (Large Subnetwork)")) +
     scale_fill_manual(values = strategy_colors) +
     common_theme
   

@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # This script runs the complete intervention analysis pipeline, generating:
-#   1. PUTA efficiency violin plot (efficiency_distributions_violin.pdf)
+#   1. IDA efficiency violin plot (efficiency_distributions_violin.pdf)
 #   2. Mechanism analysis plot (mechanism_analysis.png)
 #
 # Usage:

@@ -12,11 +12,11 @@ The plotting code in `plot_interventions.R` and `run_analysis.R` provides visual
 
 ### 1. **Efficiency Distribution Plots** (`plot_efficiency_distributions`)
 
-**Purpose**: Visualize PUTA and PIA efficiency across all 6 intervention strategies
+**Purpose**: Visualize IDA and PIA efficiency across all 6 intervention strategies
 
 **Output**: 4-panel figure showing:
-- **Panel 1**: PUTA efficiency (small/dense subnetwork assumption)
-- **Panel 2**: PUTA efficiency (large/sparse subnetwork assumption)
+- **Panel 1**: IDA efficiency (small/dense subnetwork assumption)
+- **Panel 2**: IDA efficiency (large/sparse subnetwork assumption)
 - **Panel 3**: PIA efficiency (small/dense subnetwork assumption)
 - **Panel 4**: PIA efficiency (large/sparse subnetwork assumption)
 
@@ -24,7 +24,7 @@ The plotting code in `plot_interventions.R` and `run_analysis.R` provides visual
 - Horizontal violin plots (strategies on y-axis)
 - Pseudo-log transformation using `asinh()` to handle outliers
 - Mean points (white with black outline) and 95% CI error bars (2.5th-97.5th percentiles)
-- Extended PUTA axis (0 to 5k) and truncated PIA axis (0 to 0.2)
+- Extended IDA axis (0 to 5k) and truncated PIA axis (0 to 0.2)
 
 **Strategies displayed**:
 1. Size>=5 (red)
@@ -232,7 +232,7 @@ progress_interval <- max(10, floor(length(simids) / 10))  # Report every 10%, mi
 
 **Code**:
 ```r
-puta_scale <- 0.5  # PUTA transformation
+puta_scale <- 0.5  # IDA transformation
 pia_scale <- 10    # PIA transformation (higher scale to expand 0-1 range)
 ```
 
@@ -289,7 +289,7 @@ plot_efficiency_distributions <- function(results,
 
 ## Critical Calculations
 
-### PUTA Efficiency Calculation
+### IDA Efficiency Calculation
 
 ```r
 # From plot_interventions.R line 82-85
@@ -302,7 +302,7 @@ df$pia_eff_large <- df$pia / df$contacts_large
 **Interpretation**: Person-days of untreated infection averted per contact notified.
 
 **Example**:
-- PUTA = 1000 person-days
+- IDA = 1000 person-days
 - Contacts = 50 people notified
 - Efficiency = 1000 / 50 = 20 days per contact
 

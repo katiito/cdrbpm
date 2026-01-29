@@ -23,7 +23,7 @@ generate_plots_from_cache()
 
 | Output | Location |
 |--------|----------|
-| **PUTA efficiency violin plot** | `intervention-plots/efficiency_distributions_violin.pdf` |
+| **IDA efficiency violin plot** | `intervention-plots/efficiency_distributions_violin.pdf` |
 | **Mechanism analysis plot** | `intervention-plots/mechanism_analysis.png` |
 | Cluster size histograms | `intervention-plots/cluster_sizes_*.png` |
 | Intervention metrics (CSV) | `intervention-results/*.csv` |
@@ -91,11 +91,11 @@ generate_plots_from_cache()
     * Old: Excluded cases with `timesequenced ≥ IT`.
 
 ---
-## 5. Scope of PIA / PUTA (behavioural change)
+## 5. Scope of PIA / IDA (behavioural change)
 
 * **New**
     * `piapids = recipients of cluster members' transmissions ∪ cluster members ∪ donors who transmitted to cluster members` (one outward step both directions).
-    * Broader set increases potential PIA/PUTA.
+    * Broader set increases potential PIA/IDA.
 * **Old**
     * `piapids = recipients of cluster donors ∪ cluster members` (donors who transmitted to cluster members omitted).
 
@@ -133,10 +133,10 @@ generate_plots_from_cache()
     * Samples `random_coverage` proportion of eligible cases (default 0.10 = 10% of eligible population, gens 1 .. last-1).
     * Sample size computed as: `random_sample_size = round(random_coverage × eligible_population)`
     * Contacts = `total_contacts + 1` where `total_contacts = Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd` (time-windowed).
-    * Summaries: total PUTA, PUTA/contact, PIA quantiles (10th / 90th percentiles).
+    * Summaries: total IDA, IDA/contact, PIA quantiles (10th / 90th percentiles).
 * **Old**
     * Uses all eligible cases.
-    * No contact notion; PIA/PUTA mean & variance per person.
+    * No contact notion; PIA/IDA mean & variance per person.
 * **Prop intervened**: Not meaningful / `NA` in both.
 
 ### C. RITA-based (`rita_intervention`)
@@ -155,7 +155,7 @@ generate_plots_from_cache()
 * **New**
     * Targets individuals with `total_contacts ≥ network_degree_threshold` (default 4).
     * Contacts = `Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd` (time-windowed, within partner notification window).
-    * Outputs: per-contact PUTA/PIA efficiency + totals; quantiles (10th / 90th percentiles).
+    * Outputs: per-contact IDA/PIA efficiency + totals; quantiles (10th / 90th percentiles).
 * **Old**
     * Weighted degree ( `F + (7/2)*G + (7*30)*H` ) approximating partners over 7 months.
     * Reports per-person metrics and proportion intervened.
@@ -167,18 +167,18 @@ generate_plots_from_cache()
 ## 8. Aggregation & summary table
 
 * **New**
-    * Columns: `Contacted Total`, `Total PUTA`, `PUTA/contacted`, `Low`, `High`, `PIA`, `Low`, `High`.
+    * Columns: `Contacted Total`, `Total IDA`, `IDA/contacted`, `Low`, `High`, `PIA`, `Low`, `High`.
     * Rows: cluster size / threshold labels plus `Random`, `RITA`, `Network, partners>threshold`.
     * Rounded; printed via `knitr::kable()` if available, else plain `data.frame`.
 * **Old**
-    * Columns: `Proportion intervened`, `Mean`, `Variance`, `lb`, `ub` (CI around mean PUTA per member).
+    * Columns: `Proportion intervened`, `Mean`, `Variance`, `lb`, `ub` (CI around mean IDA per member).
 
 ---
 ## 9. Edge cases & defaults
 
 * **New**
     * Empty selections return structured zeroed summaries (`total_contacts = 0`).
-    * Uses empirical quantiles: 10th / 90th percentiles uniformly for all strategies and metrics (PUTA and PIA efficiency).
+    * Uses empirical quantiles: 10th / 90th percentiles uniformly for all strategies and metrics (IDA and PIA efficiency).
 * **Old**
     * Empty sets could yield undefined means/variances.
     * Confidence intervals via normal approximation.
@@ -187,7 +187,7 @@ generate_plots_from_cache()
 ## 10. Backward-incompatible changes (attention)
 
 * Shift from per-member means/variances to per-contact efficiency + totals.
-* Broader PIA/PUTA population in distance–size (adds donors of cluster recipients) → larger effects possible.
+* Broader PIA/IDA population in distance–size (adds donors of cluster recipients) → larger effects possible.
 * Network targeting degree definition changed (unweighted vs weighted) → threshold semantics differ.
 * Random strategy now samples a fixed number (`random_sample_size`) rather than all.
 * RITA proportion intervened removed (now `NA`).
@@ -251,7 +251,7 @@ Notes:
 
 ### Source Files
 
-- **`src/intervention0.R`** – Core intervention analysis functions that compute PUTA, PIA, and efficiency metrics for each strategy
+- **`src/intervention0.R`** – Core intervention analysis functions that compute IDA, PIA, and efficiency metrics for each strategy
 - **`src/plot_interventions.R`** – Visualization functions for intervention results
 
 ### Running the Mechanism Analysis
