@@ -145,20 +145,21 @@ run_intervention_analysis <- function(
     Dall <- read.csv(resolve_input_path(d_file), stringsAs = FALSE)
     Gall <- read.csv(resolve_input_path(g_file), stringsAs = FALSE)
 
-    # Validate that D and G files have matching simulation IDs
+    # Validate that G contains all simulation IDs present in D
+    # (G may have additional sims with no transmissions - this is normal)
     d_simids <- unique(Dall$simid)
     g_simids <- unique(Gall$simid)
-    if (!setequal(d_simids, g_simids)) {
-      missing_in_d <- setdiff(g_simids, d_simids)
-      missing_in_g <- setdiff(d_simids, g_simids)
-      error_msg <- "Simulation ID mismatch between D and G files:"
-      if (length(missing_in_d) > 0) {
-        error_msg <- paste0(error_msg, "\n  D file missing simids: ", paste(head(missing_in_d, 5), collapse = ", "))
-      }
-      if (length(missing_in_g) > 0) {
-        error_msg <- paste0(error_msg, "\n  G file missing simids: ", paste(head(missing_in_g, 5), collapse = ", "))
-      }
-      stop(error_msg)
+    missing_in_g <- setdiff(d_simids, g_simids)
+    if (length(missing_in_g) > 0) {
+      stop("Simulation ID mismatch: G file missing simids present in D: ",
+           paste(head(missing_in_g, 10), collapse = ", "))
+    }
+
+    # Filter G to only include simulations present in D
+    if (length(g_simids) > length(d_simids)) {
+      cat(sprintf("  Note: G has %d simulations, D has %d (filtering G to match D)\n",
+                  length(g_simids), length(d_simids)))
+      Gall <- Gall[Gall$simid %in% d_simids, ]
     }
 
     # Split by simulation ID
@@ -1714,10 +1715,26 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     o = odf,
     propintervened = nrow(odf) / nrow(Gall[Gall$generation > 0 & Gall$generation < lastgeneration, ]),
     n_units = nrow(odf),
-    puta_small = c(sum(odf$puta), med_puta_small, q_puta_small),
-    puta_large = c(sum(odf$puta), med_puta_large, q_puta_large),
-    pia_small = c(sum(odf$pia), med_pia_small, q_pia_small),
-    pia_large = c(sum(odf$pia), med_pia_large, q_pia_large),
+    puta_small = c(sum(odf$puta),
+         if (sum(odf$contacts_small) > 0) sum(odf$puta) / sum(odf$contacts_small) else NA_real_,
+         med_puta_small,
+         q_puta_small[1],
+         q_puta_small[2]),
+    puta_large = c(sum(odf$puta),
+         if (sum(odf$contacts_large) > 0) sum(odf$puta) / sum(odf$contacts_large) else NA_real_,
+         med_puta_large,
+         q_puta_large[1],
+         q_puta_large[2]),
+    pia_small = c(sum(odf$pia),
+         if (sum(odf$contacts_small) > 0) sum(odf$pia) / sum(odf$contacts_small) else NA_real_,
+         med_pia_small,
+         q_pia_small[1],
+         q_pia_small[2]),
+    pia_large = c(sum(odf$pia),
+         if (sum(odf$contacts_large) > 0) sum(odf$pia) / sum(odf$contacts_large) else NA_real_,
+         med_pia_large,
+         q_pia_large[1],
+         q_pia_large[2]),
     total_contacts_small = sum(odf$contacts_small),
     total_contacts_large = sum(odf$contacts_large)
   )
