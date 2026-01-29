@@ -1,0 +1,8 @@
+"Strategy","Units","Contacts_Small","Contacts_Large"
+"Size=5,D=0.005",378,17831,21778
+"Size=2,D=0.005",2102,50737,50697
+"Growth,size=5,W=6mo,D=0.01",14,631,816
+"Random,10%",3658,40750,40750
+"RITA",3893,32071,32071
+"Network,partners>4",26842,379101,379101
+"RITA+Secondary,W=6mo",3819,57957,45032

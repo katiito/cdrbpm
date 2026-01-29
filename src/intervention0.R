@@ -312,7 +312,10 @@ run_intervention_analysis <- function(
       ),
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
-        list(propintervened = 0, n_units = 0,
+        list(o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0),
+                           nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
+                           contacts_small = numeric(0), contacts_large = numeric(0)),
+             propintervened = 0, n_units = 0,
              puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
@@ -476,8 +479,26 @@ run_intervention_analysis <- function(
       if (!is.null(oritasec$o) && nrow(oritasec$o) > 0) all_details$ritasecondary <- oritasec$o
       # Random/RITA/Network have different column structures; combine cluster-based ones only
       if (length(all_details) > 0) {
-        combined_clusters <- do.call(rbind, all_details)
-        write.csv(combined_clusters, file.path(output_dir, paste0("details_all_clusters_", timestamp, ".csv")), row.names = FALSE)
+        # Use dplyr::bind_rows which handles column mismatches gracefully
+        if (requireNamespace("dplyr", quietly = TRUE)) {
+          combined_clusters <- dplyr::bind_rows(all_details)
+        } else {
+          # Fallback: use incremental rbind with error handling
+          tryCatch({
+            combined_clusters <- all_details[[1]]
+            if (length(all_details) > 1) {
+              for (i in 2:length(all_details)) {
+                combined_clusters <- rbind(combined_clusters, all_details[[i]])
+              }
+            }
+          }, error = function(e) {
+            cat("Warning: Could not combine cluster details:", e$message, "\n")
+            combined_clusters <- NULL
+          })
+        }
+        if (!is.null(combined_clusters)) {
+          write.csv(combined_clusters, file.path(output_dir, paste0("details_all_clusters_", timestamp, ".csv")), row.names = FALSE)
+        }
       }
       
       # Save run parameters for reproducibility
@@ -523,18 +544,22 @@ run_intervention_analysis <- function(
       distsize5_nc <- if (!is.null(ods5$o) && nrow(ods5$o) > 0) ods5$o$nc else numeric(0)
       distsize2_nc <- if (!is.null(ods2$o) && nrow(ods2$o) > 0) ods2$o$nc else numeric(0)
       growth_nc <- if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) ogrowth$o$nc else numeric(0)
-      
-      if (length(distsize5_nc) > 0 || length(distsize2_nc) > 0 || length(growth_nc) > 0) {
+      ritasec_nc <- if (!is.null(oritasec$o) && nrow(oritasec$o) > 0) oritasec$o$nc else numeric(0)
+
+      if (length(distsize5_nc) > 0 || length(distsize2_nc) > 0 || length(growth_nc) > 0 || length(ritasec_nc) > 0) {
         # Combine into data frame for plotting
         plot_df <- rbind(
-          if (length(distsize5_nc) > 0) 
-            data.frame(strategy = paste0('Distance-size (k=', cluster_size_5, ')'), nc = distsize5_nc) 
+          if (length(distsize5_nc) > 0)
+            data.frame(strategy = paste0('Distance-size (k=', cluster_size_5, ')'), nc = distsize5_nc)
           else NULL,
-          if (length(distsize2_nc) > 0) 
-            data.frame(strategy = paste0('Distance-size (k=', cluster_size_2, ')'), nc = distsize2_nc) 
+          if (length(distsize2_nc) > 0)
+            data.frame(strategy = paste0('Distance-size (k=', cluster_size_2, ')'), nc = distsize2_nc)
           else NULL,
-          if (length(growth_nc) > 0) 
-            data.frame(strategy = paste0('Growth-rate (k=', cluster_size_5, ', W=', lookback_window_months, 'mo)'), nc = growth_nc) 
+          if (length(growth_nc) > 0)
+            data.frame(strategy = paste0('Growth-rate (k=', cluster_size_5, ', W=', lookback_window_months, 'mo)'), nc = growth_nc)
+          else NULL,
+          if (length(ritasec_nc) > 0)
+            data.frame(strategy = paste0('RITA+Secondary (W=', rita_window_months, 'mo)'), nc = ritasec_nc)
           else NULL
         )
         
@@ -1537,7 +1562,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
 
   if (nrow(G_rita) == 0) {
     return(list(
-      o = data.frame(pia = numeric(0), puta = numeric(0),
+      o = data.frame(pia = numeric(0), puta = numeric(0), interventiontime = numeric(0),
+                     nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
       n_units = 0,
@@ -1684,13 +1710,37 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     results[[i]] <- data.frame(
       pia = pia,
       puta = puta,
+      interventiontime = IT,
+      nc = length(network),
+      sum_degrees = NA_real_,  # Not applicable to RITA+Secondary
+      sum_excess = NA_real_,   # Not applicable to RITA+Secondary
       contacts_small = contacts_small,
       contacts_large = contacts_large
     )
   }
 
-  # Combine results
-  odf <- do.call(rbind, results)
+  # Combine results - use incremental rbind to avoid do.call issues
+  if (length(results) == 0) {
+    return(list(
+      o = NULL,
+      propintervened = 0,
+      n_units = 0,
+      puta_small = c(0, 0, 0, 0, 0),
+      puta_large = c(0, 0, 0, 0, 0),
+      pia_small = c(0, 0, 0, 0, 0),
+      pia_large = c(0, 0, 0, 0, 0),
+      total_contacts_small = 0,
+      total_contacts_large = 0
+    ))
+  }
+
+  odf <- results[[1]]
+  if (length(results) > 1) {
+    for (i in 2:length(results)) {
+      odf <- rbind(odf, results[[i]])
+    }
+  }
+  odf <- as.data.frame(odf, stringsAsFactors = FALSE)
 
   # Compute summary statistics (matching cluster-based strategies)
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
