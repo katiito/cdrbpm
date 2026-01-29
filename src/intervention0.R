@@ -283,7 +283,7 @@ run_intervention_analysis <- function(
     cat(" done (", orita$n_units, " units)\n", sep = "")
 
     # Strategy 6: Network degree-based intervention
-    cat("  [6/6] Network degree (threshold=", network_degree_threshold, ", window=", partner_notification_window_months, "mo)...", sep = "")
+    cat("  [6/7] Network degree (threshold=", network_degree_threshold, ", window=", partner_notification_window_months, "mo)...", sep = "")
     onet <- tryCatch(
       network_intervention(
         Dall = Dall, Gall = Gall,
@@ -298,6 +298,26 @@ run_intervention_analysis <- function(
       }
     )
     cat(" done (", onet$n_units, " units)\n", sep = "")
+
+    # Strategy 7: RITA + Secondary Contact Tracing
+    cat("  [7/7] RITA+Secondary (window=", rita_window_months, "mo, lookback=", partner_notification_window_months, "mo)...", sep = "")
+    oritasec <- tryCatch(
+      rita_secondary_intervention(
+        Dall = Dall, Gall = Gall,
+        rita_window_months = rita_window_months,
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months,
+        analysis_delay_days = 0
+      ),
+      error = function(e) {
+        cat(" ERROR:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
+             total_contacts_small = 0, total_contacts_large = 0)
+      }
+    )
+    cat(" done (", oritasec$n_units, " units)\n", sep = "")
 
     elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "secs"))
     cat("All interventions completed in", round(elapsed, 1), "seconds\n\n")
@@ -344,7 +364,12 @@ run_intervention_analysis <- function(
       # Individual-based strategies: single row each (subnetwork = NA)
       build_row(paste0('Random,', round(100*random_coverage), '%'), "-", orand$total_contacts, orand$puta, orand$pia),
       build_row('RITA', "-", orita$total_contacts, orita$puta, orita$pia),
-      build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$puta, onet$pia)
+      build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$puta, onet$pia),
+      # RITA+Secondary: cluster-based (small and large rows)
+      build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "small",
+                oritasec$total_contacts_small, oritasec$puta_small, oritasec$pia_small),
+      build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "large",
+                oritasec$total_contacts_large, oritasec$puta_large, oritasec$pia_large)
     ) |> as.data.frame()
     
     # Convert numeric columns from character
@@ -366,13 +391,14 @@ run_intervention_analysis <- function(
         paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
         paste0('Random,', round(100*random_coverage), '%'),
         'RITA',
-        paste0('Network,partners>', network_degree_threshold)
+        paste0('Network,partners>', network_degree_threshold),
+        paste0('RITA+Secondary,W=', rita_window_months, 'mo')
       ),
-      Units = c(ods5$n_units, ods2$n_units, ogrowth$n_units, orand$n_units, orita$n_units, onet$n_units),
+      Units = c(ods5$n_units, ods2$n_units, ogrowth$n_units, orand$n_units, orita$n_units, onet$n_units, oritasec$n_units),
       Contacts_Small = round(c(ods5$total_contacts_small, ods2$total_contacts_small, ogrowth$total_contacts_small,
-                               orand$total_contacts, orita$total_contacts, onet$total_contacts), 0),
+                               orand$total_contacts, orita$total_contacts, onet$total_contacts, oritasec$total_contacts_small), 0),
       Contacts_Large = round(c(ods5$total_contacts_large, ods2$total_contacts_large, ogrowth$total_contacts_large,
-                               orand$total_contacts, orita$total_contacts, onet$total_contacts), 0)
+                               orand$total_contacts, orita$total_contacts, onet$total_contacts, oritasec$total_contacts_large), 0)
     )
 
     # -------------------------------------------------------------------------
@@ -426,12 +452,18 @@ run_intervention_analysis <- function(
         onet$o$strategy <- paste0("Network,partners>", network_degree_threshold)
         write.csv(onet$o, file.path(output_dir, paste0("details_network_", timestamp, ".csv")), row.names = FALSE)
       }
-      
+      # RITA+Secondary
+      if (!is.null(oritasec$o) && nrow(oritasec$o) > 0) {
+        oritasec$o$strategy <- paste0("RITA+Secondary,W=", rita_window_months, "mo")
+        write.csv(oritasec$o, file.path(output_dir, paste0("details_ritasecondary_", timestamp, ".csv")), row.names = FALSE)
+      }
+
       # Also save a combined long-format details file for easy comparison
       all_details <- list()
       if (!is.null(ods5$o) && nrow(ods5$o) > 0) all_details$distsize5 <- ods5$o
       if (!is.null(ods2$o) && nrow(ods2$o) > 0) all_details$distsize2 <- ods2$o
       if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) all_details$growth <- ogrowth$o
+      if (!is.null(oritasec$o) && nrow(oritasec$o) > 0) all_details$ritasecondary <- oritasec$o
       # Random/RITA/Network have different column structures; combine cluster-based ones only
       if (length(all_details) > 0) {
         combined_clusters <- do.call(rbind, all_details)
@@ -534,7 +566,8 @@ run_intervention_analysis <- function(
         growth = ogrowth,
         random = orand,
         rita = orita,
-        network = onet
+        network = onet,
+        ritasecondary = oritasec
       ),
       parameters = list(
         partner_notification_window_months = partner_notification_window_months,
@@ -1452,6 +1485,243 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
     )
 }
 
+#' RITA + Secondary Contact Tracing intervention strategy
+#'
+#' Combines RITA's early detection with 2-degree contact tracing.
+#' Identifies RITA-positive individuals (recently infected) and traces their
+#' transmission network backward and forward within the lookback window.
+#'
+#' Network identification (using transmission tree):
+#'   - Primary traced: Individuals with transmission links to/from RITA+ index
+#'   - Secondary traced: Individuals with transmission links to/from primary traced
+#'   - All transmission events must occur within lookback window
+#'   - Transmission links used to IDENTIFY individuals, not count contacts
+#'
+#' Contact notification (using contact counts):
+#'   - Each traced individual has unknown contacts (Fcontacts + Gcontacts + Hcontacts)
+#'   - We notify all contacts of all traced individuals
+#'   - Small subnetwork: Sum all contact counts (assume no overlap)
+#'   - Large subnetwork: Max contact count (assume complete overlap)
+#'
+#' @param Dall Combined transmission data for all simulations
+#' @param Gall Combined individual data for all simulations
+#' @param rita_window_months Average RITA detection window in months
+#' @param implementation_delay_days Fixed delay (days) for intervention implementation
+#' @param partner_notification_window_months Lookback window: 3 or 6 months (default: 6)
+#' @param analysis_delay_days Delay for network analysis (default: 0, interviews during implementation)
+#'
+#' @return List with same structure as cluster-based strategies
+rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
+                                        implementation_delay_days,
+                                        partner_notification_window_months = 6,
+                                        analysis_delay_days = 0)
+{
+  lastgeneration <- max(Gall$generation)
+  lookback_days <- partner_notification_window_months * 30
+
+  # Simulate RITA test: positive if diagnosed within random window of infection
+  Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rita_window_months*30)))
+
+  # Filter to RITA-positive cases in generations 1+ (excluding last)
+  G_rita <- Gall[Gall$rita & (Gall$generation > 0) & (Gall$generation < lastgeneration), ]
+
+  if (nrow(G_rita) == 0) {
+    return(list(
+      o = data.frame(pia = numeric(0), puta = numeric(0),
+                     contacts_small = numeric(0), contacts_large = numeric(0)),
+      propintervened = 0,
+      n_units = 0,
+      puta_small = c(0, 0, 0, 0, 0),
+      puta_large = c(0, 0, 0, 0, 0),
+      pia_small = c(0, 0, 0, 0, 0),
+      pia_large = c(0, 0, 0, 0, 0),
+      total_contacts_small = 0,
+      total_contacts_large = 0
+    ))
+  }
+
+  # Make PIDs unique across simulations
+  G_rita$pid <- paste(sep = '.', G_rita$pid, G_rita$simid)
+  D <- Dall
+  D$donor <- paste(sep = '.', D$donor, D$simid)
+  D$recipient <- paste(sep = '.', D$recipient, D$simid)
+  G <- Gall
+  G$pid <- paste(sep = '.', G$pid, G$simid)
+
+  # Calculate total contacts based on partner notification window
+  if (partner_notification_window_months == 3) {
+    G$total_contacts <- with(G, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+  } else {
+    G$total_contacts <- with(G, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+  }
+
+  # Set intervention time
+  G_rita$IT <- G_rita$timediagnosed + analysis_delay_days + implementation_delay_days
+
+  # Helper function: Get transmission-linked individuals within lookback window
+  # NOTE: This identifies individuals via transmission tree, NOT their contacts
+  # Contacts are unknown - we only know contact COUNTS per person
+  get_transmission_linked_individuals <- function(pid, window_start, window_end) {
+    # People this person transmitted TO within window
+    # (These are a subset of this person's contacts)
+    forward <- D$recipient[
+      D$donor == pid &
+      D$timetransmission >= window_start &
+      D$timetransmission <= window_end
+    ]
+
+    # People this person was infected BY within window
+    # (These are a subset of people who had contact with this person)
+    backward <- D$donor[
+      D$recipient == pid &
+      D$timetransmission >= window_start &
+      D$timetransmission <= window_end
+    ]
+
+    unique(c(forward, backward))
+  }
+
+  # Helper function: Check if person is eligible for intervention at IT
+  eligible_for_intervention <- function(person_info, IT) {
+    if (nrow(person_info) == 0) return(FALSE)
+    person_info$generation[1] > 0 &&
+      person_info$generation[1] < lastgeneration &&
+      person_info$timediagnosed[1] > IT
+  }
+
+  # Process each RITA-positive case
+  results <- list()
+
+  for (i in seq_len(nrow(G_rita))) {
+    index_pid <- G_rita$pid[i]
+    index_dx_time <- G_rita$timediagnosed[i]
+    IT <- G_rita$IT[i]
+
+    # Define lookback window anchored to index diagnosis
+    lookback_start <- index_dx_time - lookback_days
+    lookback_end <- index_dx_time
+
+    # Build traced network using transmission tree
+    # NOTE: We use transmission links to IDENTIFY individuals, not to count contacts
+    network <- c(index_pid)  # Start with RITA+ index
+
+    # Step 1: Identify primary traced individuals (transmission-linked to index)
+    primary_traced <- get_transmission_linked_individuals(index_pid, lookback_start, lookback_end)
+
+    for (primary_pid in primary_traced) {
+      primary_info <- G[G$pid == primary_pid, ]
+      if (eligible_for_intervention(primary_info, IT)) {
+        network <- c(network, primary_pid)
+
+        # Step 2: Identify secondary traced individuals (transmission-linked to primary)
+        secondary_traced <- get_transmission_linked_individuals(primary_pid, lookback_start, lookback_end)
+
+        for (secondary_pid in secondary_traced) {
+          # Skip if already in network
+          if (secondary_pid %in% network) next
+
+          secondary_info <- G[G$pid == secondary_pid, ]
+          if (eligible_for_intervention(secondary_info, IT)) {
+            network <- c(network, secondary_pid)
+          }
+        }
+      }
+    }
+
+    network <- unique(network)
+
+    # Calculate total contacts to notify
+    # Each traced individual has their own (unknown) contact list
+    # We notify ALL contacts of ALL traced individuals
+    network_contacts <- numeric(length(network))
+    for (j in seq_along(network)) {
+      person <- G[G$pid == network[j], ]
+      if (nrow(person) > 0) {
+        # total_contacts = Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd
+        network_contacts[j] <- person$total_contacts[1]
+      }
+    }
+
+    # Small network: sum all contacts (assume fully unique - no overlap)
+    # Total notifications = sum of all contact lists
+    contacts_small <- sum(network_contacts)
+
+    # Large network: max contacts (assume fully overlapping/connected)
+    # Total unique contacts ≈ max individual contact list
+    contacts_large <- max(network_contacts, 0)
+
+    # Calculate PIA and PUTA for network
+    # PIA/PUTA scope: network members + their transmission partners
+    # (Following cluster-based strategy pattern)
+    piapids <- network
+    for (pid in network) {
+      # Add all transmission partners of network members
+      # (These represent potential infections averted through network intervention)
+      piapids <- union(piapids, D$recipient[D$donor == pid])  # People they infected
+      piapids <- union(piapids, D$donor[D$recipient == pid])  # People who infected them
+    }
+
+    G2 <- G[G$pid %in% piapids, ]
+
+    # PIA: Infections that occurred AFTER intervention time
+    pia <- sum(G2$timeinfected > IT)
+
+    # PUTA: Person-years of untreated infection averted
+    # (People infected before IT but diagnosed after IT)
+    G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
+    puta <- sum(G3$timediagnosed - IT)
+
+    results[[i]] <- data.frame(
+      pia = pia,
+      puta = puta,
+      contacts_small = contacts_small,
+      contacts_large = contacts_large
+    )
+  }
+
+  # Combine results
+  odf <- do.call(rbind, results)
+
+  # Compute summary statistics (matching cluster-based strategies)
+  # Quantiles: 10th and 90th percentiles used uniformly for all metrics
+
+  # PUTA efficiency for small subnetwork
+  e_puta_small <- odf$puta / odf$contacts_small
+  e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
+  med_puta_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
+  q_puta_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+
+  # PUTA efficiency for large subnetwork
+  e_puta_large <- odf$puta / odf$contacts_large
+  e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
+  med_puta_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
+  q_puta_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+
+  # PIA efficiency for small subnetwork
+  e_pia_small <- odf$pia / odf$contacts_small
+  e_pia_small_valid <- e_pia_small[is.finite(e_pia_small) & !is.na(e_pia_small)]
+  med_pia_small <- if (length(e_pia_small_valid) > 0) median(e_pia_small_valid) else NA_real_
+  q_pia_small <- if (length(e_pia_small_valid) > 0) quantile(e_pia_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+
+  # PIA efficiency for large subnetwork
+  e_pia_large <- odf$pia / odf$contacts_large
+  e_pia_large_valid <- e_pia_large[is.finite(e_pia_large) & !is.na(e_pia_large)]
+  med_pia_large <- if (length(e_pia_large_valid) > 0) median(e_pia_large_valid) else NA_real_
+  q_pia_large <- if (length(e_pia_large_valid) > 0) quantile(e_pia_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+
+  # Return results
+  list(
+    o = odf,
+    propintervened = nrow(odf) / nrow(Gall[Gall$generation > 0 & Gall$generation < lastgeneration, ]),
+    n_units = nrow(odf),
+    puta_small = c(sum(odf$puta), med_puta_small, q_puta_small),
+    puta_large = c(sum(odf$puta), med_puta_large, q_puta_large),
+    pia_small = c(sum(odf$pia), med_pia_small, q_pia_small),
+    pia_large = c(sum(odf$pia), med_pia_large, q_pia_large),
+    total_contacts_small = sum(odf$contacts_small),
+    total_contacts_large = sum(odf$contacts_large)
+  )
+}
 
 
 # =============================================================================

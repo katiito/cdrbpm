@@ -36,8 +36,8 @@ plot_efficiency_distributions <- function(results,
   }
 
   # Strategy names and display labels
-  strategy_names <- c("distsize5", "distsize2", "growth", "random", "rita", "network")
-  strategy_labels <- c("Size>=5", "Size>=2", "Growth", "Random", "RITA", "Network")
+  strategy_names <- c("distsize5", "distsize2", "growth", "random", "rita", "network", "ritasecondary")
+  strategy_labels <- c("Size>=5", "Size>=2", "Growth", "Random", "RITA", "Network", "RITA+Secondary")
   
   # Extract per-unit data from each strategy's results
   extract_data <- function(details) {
@@ -62,7 +62,7 @@ plot_efficiency_distributions <- function(results,
           contacts_large = o$contacts
         )
       } else {
-        # For cluster-based strategies (distsize5, distsize2, growth)
+        # For cluster-based strategies (distsize5, distsize2, growth, ritasecondary)
         if (!all(c("puta", "pia", "contacts_small", "contacts_large") %in% names(o))) return(NULL)
         data.frame(
           strategy = slabel,
@@ -99,11 +99,12 @@ plot_efficiency_distributions <- function(results,
   # Define color palette
   strategy_colors <- c(
     "Size>=5" = "#E41A1C",
-    "Size>=2" = "#377EB8", 
+    "Size>=2" = "#377EB8",
     "Growth" = "#4DAF4A",
     "Random" = "#984EA3",
     "RITA" = "#FF7F00",
-    "Network" = "#A65628"
+    "Network" = "#A65628",
+    "RITA+Secondary" = "#F781BF"
   )
   
   # Pseudo-log transformation using asinh for smoother behavior near zero
@@ -276,15 +277,16 @@ plot_mechanism_analysis <- function(D, G,
   # Color palette
   strategy_colors <- c(
     "Size>=5" = "#E41A1C",
-    "Size>=2" = "#377EB8", 
+    "Size>=2" = "#377EB8",
     "Growth" = "#4DAF4A",
     "Random" = "#984EA3",
     "RITA" = "#FF7F00",
-    "Network" = "#A65628"
+    "Network" = "#A65628",
+    "RITA+Secondary" = "#F781BF"
   )
-  
+
   # Consistent ordering for all plots
-  strategy_order <- c("RITA", "Growth", "Size>=5", "Random", "Network")
+  strategy_order <- c("RITA", "RITA+Secondary", "Growth", "Size>=5", "Random", "Network")
   
   # Parameters - matching those used in intervention0.R analysis
   # (distance thresholds and contact/degree parameters come from function parameters)

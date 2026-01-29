@@ -92,7 +92,8 @@ load_cached_results <- function() {
     growth = find_most_recent("^details_growth_"),
     random = find_most_recent("^details_random_"),
     rita = find_most_recent("^details_rita_"),
-    network = find_most_recent("^details_network_")
+    network = find_most_recent("^details_network_"),
+    ritasecondary = find_most_recent("^details_ritasecondary_")
   )
   
   for (key in names(strategy_files)) {
