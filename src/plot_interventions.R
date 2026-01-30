@@ -606,9 +606,15 @@ plot_mechanism_analysis <- function(D, G,
           
           # Delay components for growth cluster intervention
           # Timeline: Infection → Diagnosis → Sequencing → [Wait for cluster] → Trigger → Analysis → Implementation → IT
+          # NOTE: Delays are calculated per cluster member (one row per component per member).
+          # For "Sequencing to Trigger", each member experiences a different delay:
+          #   - Member A (sequenced first) waits longest for cluster to accumulate
+          #   - Member E (sequenced 5th) waits shortest (triggers immediately)
+          # The mean across all individuals equals the mean of cluster-level means (when cluster sizes are similar).
+          # This captures the per-individual delay experience within clusters.
           delay_results <- rbind(delay_results, data.frame(
-            component = c("Dx to Sequencing\n(sequencing delay)", 
-                          "Sequencing to Trigger\n(cluster accumulation)", 
+            component = c("Dx to Sequencing\n(sequencing delay)",
+                          "Sequencing to Trigger\n(cluster accumulation)",
                           "Trigger to Analysis\n(analysis delay)",
                           "Analysis to Intervention\n(implementation delay)"),
             delay = c(
@@ -939,8 +945,13 @@ plot_mechanism_analysis <- function(D, G,
   # =========================================================================
   # Panel E: Delay components for growth clusters
   # =========================================================================
-  
+
   if (nrow(delay_results) > 0) {
+    # Compute mean and SE across all individual cluster members
+    # Each observation is one cluster member's delay for one component.
+    # The "Sequencing to Trigger" mean represents the average per-individual delay,
+    # which equals the mean of cluster-level means (averaging the 5 members within each cluster).
+    # Error bars show standard error across all individual observations.
     delay_summary <- delay_results %>%
       group_by(component) %>%
       summarise(
