@@ -614,12 +614,14 @@ plot_mechanism_analysis <- function(D, G,
           # This captures the per-individual delay experience within clusters.
           delay_results <- rbind(delay_results, data.frame(
             component = c("Dx to Sequencing\n(sequencing delay)",
-                          "Sequencing to Trigger\n(cluster accumulation)",
+                          "Sequencing to Trigger\n(per-individual accumulation)",
+                          "First Sequenced to Trigger\n(total cluster accumulation)",
                           "Trigger to Analysis\n(analysis delay)",
                           "Analysis to Intervention\n(implementation delay)"),
             delay = c(
               time_seq - time_dx,                    # Time from diagnosis to sequencing complete
               t[trigger_i] - time_seq,              # Time waiting for 5th case in cluster (varies by member)
+              t[trigger_i] - t[window_start_j],     # Time from 1st sequenced to trigger (same for all in cluster)
               analysis_delay,                        # Fixed 14-day analysis delay after trigger
               implementation_delay                   # Fixed 14-day implementation delay after analysis
             )
@@ -960,9 +962,10 @@ plot_mechanism_analysis <- function(D, G,
         .groups = "drop"
       )
     
-    delay_summary$component <- factor(delay_summary$component, 
-                                      levels = c("Dx to Sequencing\n(sequencing delay)", 
-                                                 "Sequencing to Trigger\n(cluster accumulation)", 
+    delay_summary$component <- factor(delay_summary$component,
+                                      levels = c("Dx to Sequencing\n(sequencing delay)",
+                                                 "Sequencing to Trigger\n(per-individual accumulation)",
+                                                 "First Sequenced to Trigger\n(total cluster accumulation)",
                                                  "Trigger to Analysis\n(analysis delay)",
                                                  "Analysis to Intervention\n(implementation delay)"))
   
