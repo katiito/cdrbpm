@@ -171,8 +171,8 @@ generate_plots_from_cache <- function(results = NULL,
   # -------------------------------------------------------------------------
   cat("Generating efficiency distribution plot...\n")
   p_violin <- plot_efficiency_distributions(results)
-  violin_path <- file.path(plot_dir, "efficiency_distributions_violin.pdf")
-  ggsave(violin_path, p_violin, width = 12, height = 10)
+  violin_path <- file.path(plot_dir, "efficiency_distributions.png")
+  ggsave(violin_path, p_violin, width = 14, height = 10, dpi = 300)
   cat(sprintf("  Saved: %s\n", violin_path))
   plots$violin <- p_violin
   
