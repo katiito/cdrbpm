@@ -56,17 +56,17 @@ plot_efficiency_distributions <- function(results,
         if (!"contacts" %in% names(o)) return(NULL)
         data.frame(
           strategy = slabel,
-          puta = o$puta,
+          ida = o$ida,
           pia = o$pia,
           contacts_small = o$contacts,  # Use same contacts for both assumptions
           contacts_large = o$contacts
         )
       } else {
         # For cluster-based strategies (distsize5, distsize2, growth, ritasecondary)
-        if (!all(c("puta", "pia", "contacts_small", "contacts_large") %in% names(o))) return(NULL)
+        if (!all(c("ida", "pia", "contacts_small", "contacts_large") %in% names(o))) return(NULL)
         data.frame(
           strategy = slabel,
-          puta = o$puta,
+          ida = o$ida,
           pia = o$pia,
           contacts_small = o$contacts_small,
           contacts_large = o$contacts_large
@@ -84,8 +84,8 @@ plot_efficiency_distributions <- function(results,
   }
   
   # Compute efficiencies
-  df$ida_eff_small <- df$puta / df$contacts_small
-  df$ida_eff_large <- df$puta / df$contacts_large
+  df$ida_eff_small <- df$ida / df$contacts_small
+  df$ida_eff_large <- df$ida / df$contacts_large
   df$pia_eff_small <- df$pia / df$contacts_small
   df$pia_eff_large <- df$pia / df$contacts_large
   
@@ -112,11 +112,11 @@ plot_efficiency_distributions <- function(results,
   # Scale factor adjusts the transition point - higher = more expansion near zero
   
   # IDA transformation (lower scale to show more detail at higher values)
-  puta_scale <- 0.5
-  puta_trans <- scales::trans_new(
-    name = "puta_pseudo_log",
-    transform = function(x) asinh(x * puta_scale) / puta_scale,
-    inverse = function(x) sinh(x * puta_scale) / puta_scale
+  ida_scale <- 0.5
+  ida_trans <- scales::trans_new(
+    name = "ida_pseudo_log",
+    transform = function(x) asinh(x * ida_scale) / ida_scale,
+    inverse = function(x) sinh(x * ida_scale) / ida_scale
   )
   
   # PIA transformation (higher scale to expand 0-1 range where most density is)
@@ -152,7 +152,7 @@ plot_efficiency_distributions <- function(results,
     stat_summary(fun = mean, geom = "point",
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
-      trans = puta_trans,
+      trans = ida_trans,
       breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000),
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
@@ -176,7 +176,7 @@ plot_efficiency_distributions <- function(results,
     stat_summary(fun = mean, geom = "point",
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
-      trans = puta_trans,
+      trans = ida_trans,
       breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000),
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
