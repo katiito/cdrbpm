@@ -199,7 +199,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -220,7 +220,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -242,7 +242,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -316,7 +316,7 @@ run_intervention_analysis <- function(
                            nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
                            contacts_small = numeric(0), contacts_large = numeric(0)),
              propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -336,16 +336,16 @@ run_intervention_analysis <- function(
     # ida_vec and pia_vec both have 5 elements: Total, Mean/contact, Median, Low, High
     build_row <- function(strategy_name, subnetwork, contacts, ida_vec, pia_vec) {
       c(Strategy = strategy_name, Subnetwork = subnetwork,
-        Contacts = contacts, 
-        Total_PUTA = ida_vec[1], 
+        Contacts = contacts,
+        Total_IDA = ida_vec[1],
         `IDA/contact` = ida_vec[2],
-        Median_PUTA = ida_vec[3], 
-        Low_PUTA = ida_vec[4], 
-        High_PUTA = ida_vec[5],
-        Total_PIA = pia_vec[1], 
+        Median_IDA = ida_vec[3],
+        Low_IDA = ida_vec[4],
+        High_IDA = ida_vec[5],
+        Total_PIA = pia_vec[1],
         `PIA/contact` = pia_vec[2],
         Median_PIA = pia_vec[3],
-        Low_PIA = pia_vec[4], 
+        Low_PIA = pia_vec[4],
         High_PIA = pia_vec[5])
     }
 
@@ -799,7 +799,7 @@ proc_cluster <- function(
 #' @param partner_notification_window_months Lookback window: 3 or 6 months (default: 6)
 #'
 #' @return List with: o (detailed results), propintervened, n_units,
-#'         puta_small, puta_large, pia, total_contacts_small, total_contacts_large
+#'         ida_small, ida_large, pia, total_contacts_small, total_contacts_large
 distsize_intervention <- function(
     Ds, Gs, Gall,
     distance_threshold, cluster_size, 
@@ -859,8 +859,8 @@ distsize_intervention <- function(
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -874,16 +874,16 @@ distsize_intervention <- function(
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
 
   # IDA efficiency for small subnetwork assumption
-  e_puta_small <- odf1$ida / odf1$contacts_small
-  e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
-  med_ida_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
-  q_ida_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  e_ida_small <- odf1$ida / odf1$contacts_small
+  e_ida_small_valid <- e_ida_small[is.finite(e_ida_small) & !is.na(e_ida_small)]
+  med_ida_small <- if (length(e_ida_small_valid) > 0) median(e_ida_small_valid) else NA_real_
+  q_ida_small <- if (length(e_ida_small_valid) > 0) quantile(e_ida_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # IDA efficiency for large subnetwork assumption
-  e_puta_large <- odf1$ida / odf1$contacts_large
-  e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
-  med_ida_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
-  q_ida_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  e_ida_large <- odf1$ida / odf1$contacts_large
+  e_ida_large_valid <- e_ida_large[is.finite(e_ida_large) & !is.na(e_ida_large)]
+  med_ida_large <- if (length(e_ida_large_valid) > 0) median(e_ida_large_valid) else NA_real_
+  q_ida_large <- if (length(e_ida_large_valid) > 0) quantile(e_ida_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # PIA efficiency for small subnetwork assumption
   e_pia_small <- odf1$pia / odf1$contacts_small
@@ -902,12 +902,12 @@ distsize_intervention <- function(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     n_units = nrow(odf1),
-    puta_small = c(sum(odf1$ida),
+    ida_small = c(sum(odf1$ida),
          if (sum(odf1$contacts_small) > 0) sum(odf1$ida) / sum(odf1$contacts_small) else NA_real_,
          med_ida_small,
          q_ida_small[1],
          q_ida_small[2]),
-    puta_large = c(sum(odf1$ida),
+    ida_large = c(sum(odf1$ida),
          if (sum(odf1$contacts_large) > 0) sum(odf1$ida) / sum(odf1$contacts_large) else NA_real_,
          med_ida_large,
          q_ida_large[1],
@@ -1124,8 +1124,8 @@ growthrate_intervention <- function(
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -1139,16 +1139,16 @@ growthrate_intervention <- function(
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
 
   # IDA efficiency for small subnetwork
-  e_puta_small <- odf1$ida / odf1$contacts_small
-  e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
-  med_ida_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
-  q_ida_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  e_ida_small <- odf1$ida / odf1$contacts_small
+  e_ida_small_valid <- e_ida_small[is.finite(e_ida_small) & !is.na(e_ida_small)]
+  med_ida_small <- if (length(e_ida_small_valid) > 0) median(e_ida_small_valid) else NA_real_
+  q_ida_small <- if (length(e_ida_small_valid) > 0) quantile(e_ida_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # IDA efficiency for large subnetwork
-  e_puta_large <- odf1$ida / odf1$contacts_large
-  e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
-  med_ida_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
-  q_ida_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  e_ida_large <- odf1$ida / odf1$contacts_large
+  e_ida_large_valid <- e_ida_large[is.finite(e_ida_large) & !is.na(e_ida_large)]
+  med_ida_large <- if (length(e_ida_large_valid) > 0) median(e_ida_large_valid) else NA_real_
+  q_ida_large <- if (length(e_ida_large_valid) > 0) quantile(e_ida_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # PIA efficiency for small subnetwork
   e_pia_small <- odf1$pia / odf1$contacts_small
@@ -1166,12 +1166,12 @@ growthrate_intervention <- function(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     n_units = nrow(odf1),
-    puta_small = c(sum(odf1$ida),
+    ida_small = c(sum(odf1$ida),
          if (sum(odf1$contacts_small) > 0) sum(odf1$ida) / sum(odf1$contacts_small) else NA_real_,
          med_ida_small,
          q_ida_small[1],
          q_ida_small[2]),
-    puta_large = c(sum(odf1$ida),
+    ida_large = c(sum(odf1$ida),
          if (sum(odf1$contacts_large) > 0) sum(odf1$ida) / sum(odf1$contacts_large) else NA_real_,
          med_ida_large,
          q_ida_large[1],
@@ -1567,8 +1567,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -1725,8 +1725,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
       o = NULL,
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -1746,16 +1746,16 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
   # Quantiles: 10th and 90th percentiles used uniformly for all metrics
 
   # IDA efficiency for small subnetwork
-  e_puta_small <- odf$ida / odf$contacts_small
-  e_puta_small_valid <- e_puta_small[is.finite(e_puta_small) & !is.na(e_puta_small)]
-  med_ida_small <- if (length(e_puta_small_valid) > 0) median(e_puta_small_valid) else NA_real_
-  q_ida_small <- if (length(e_puta_small_valid) > 0) quantile(e_puta_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  e_ida_small <- odf$ida / odf$contacts_small
+  e_ida_small_valid <- e_ida_small[is.finite(e_ida_small) & !is.na(e_ida_small)]
+  med_ida_small <- if (length(e_ida_small_valid) > 0) median(e_ida_small_valid) else NA_real_
+  q_ida_small <- if (length(e_ida_small_valid) > 0) quantile(e_ida_small_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # IDA efficiency for large subnetwork
-  e_puta_large <- odf$ida / odf$contacts_large
-  e_puta_large_valid <- e_puta_large[is.finite(e_puta_large) & !is.na(e_puta_large)]
-  med_ida_large <- if (length(e_puta_large_valid) > 0) median(e_puta_large_valid) else NA_real_
-  q_ida_large <- if (length(e_puta_large_valid) > 0) quantile(e_puta_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
+  e_ida_large <- odf$ida / odf$contacts_large
+  e_ida_large_valid <- e_ida_large[is.finite(e_ida_large) & !is.na(e_ida_large)]
+  med_ida_large <- if (length(e_ida_large_valid) > 0) median(e_ida_large_valid) else NA_real_
+  q_ida_large <- if (length(e_ida_large_valid) > 0) quantile(e_ida_large_valid, probs = c(0.1, 0.9), names = FALSE) else c(NA_real_, NA_real_)
 
   # PIA efficiency for small subnetwork
   e_pia_small <- odf$pia / odf$contacts_small
@@ -1774,12 +1774,12 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     o = odf,
     propintervened = nrow(odf) / nrow(Gall[Gall$generation > 0 & Gall$generation < lastgeneration, ]),
     n_units = nrow(odf),
-    puta_small = c(sum(odf$ida),
+    ida_small = c(sum(odf$ida),
          if (sum(odf$contacts_small) > 0) sum(odf$ida) / sum(odf$contacts_small) else NA_real_,
          med_ida_small,
          q_ida_small[1],
          q_ida_small[2]),
-    puta_large = c(sum(odf$ida),
+    ida_large = c(sum(odf$ida),
          if (sum(odf$contacts_large) > 0) sum(odf$ida) / sum(odf$contacts_large) else NA_real_,
          med_ida_large,
          q_ida_large[1],
