@@ -157,8 +157,8 @@ plot_efficiency_distributions <- function(results,
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
     coord_flip() +
-    labs(y = "IDA per contact", x = "",
-         title = paste0(title_prefix, "IDA (Small Subnetwork)")) +
+    labs(y = "Infectious Days Averted per contact", x = "",
+         title = paste0(title_prefix, "Infectious Days Averted (Small Subnetwork)")) +
     scale_fill_manual(values = strategy_colors) +
     common_theme
   
@@ -181,11 +181,11 @@ plot_efficiency_distributions <- function(results,
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
     coord_flip() +
-    labs(y = "IDA per contact", x = "",
-         title = paste0(title_prefix, "IDA (Large Subnetwork)")) +
+    labs(y = "Infectious Days Averted per contact", x = "",
+         title = paste0(title_prefix, "Infectious Days Averted (Large Subnetwork)")) +
     scale_fill_manual(values = strategy_colors) +
     common_theme
-  
+
   # PIA plots with pseudo-log scale - truncated to show bulk density
   p3 <- ggplot(df, aes(x = strategy, y = pia_eff_small, fill = strategy)) +
     geom_violin(alpha = 0.7, scale = "width") +
@@ -207,8 +207,8 @@ plot_efficiency_distributions <- function(results,
       limits = c(0, 0.2)
     ) +
     coord_flip() +
-    labs(y = "PIA per contact", x = "",
-         title = paste0(title_prefix, "PIA (Small Subnetwork)")) +
+    labs(y = "Possible Infections Averted per contact", x = "",
+         title = paste0(title_prefix, "Possible Infections Averted (Small Subnetwork)")) +
     scale_fill_manual(values = strategy_colors) +
     common_theme
   
@@ -232,13 +232,13 @@ plot_efficiency_distributions <- function(results,
       limits = c(0, 0.2)
     ) +
     coord_flip() +
-    labs(y = "PIA per contact", x = "",
-         title = paste0(title_prefix, "PIA (Large Subnetwork)")) +
+    labs(y = "Possible Infections Averted per contact", x = "",
+         title = paste0(title_prefix, "Possible Infections Averted (Large Subnetwork)")) +
     scale_fill_manual(values = strategy_colors) +
     common_theme
-  
+
   # Combine plots: 2x2 grid
-  (p1 + p2) / (p3 + p4) + 
+  (p1 + p2) / (p3 + p4) +
     plot_annotation(title = "Intervention Efficiency Distributions")
 }
 
