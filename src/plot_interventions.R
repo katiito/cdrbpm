@@ -1200,9 +1200,9 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
     facet_wrap(~ metric, ncol = 1) +
     labs(
       title = "Paired Comparison: Percent Improvement Over Random Baseline",
-      subtitle = "Percent change relative to random | Large subnetwork | Matched simulations\nBlack diamond = mean | Y-axis limited to [-500%, 1000%]",
+      subtitle = "Large subnetwork | Matched simulations | Black diamond = mean",
       x = "",
-      y = "Percent improvement over random\n(positive = better than random)"
+      y = "Percent improvement over random"
     ) +
     theme_minimal(base_size = 12) +
     theme(
