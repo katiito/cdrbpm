@@ -52,21 +52,23 @@ plot_efficiency_distributions <- function(results,
       o <- details[[sname]]$o
       
       # For individual-based interventions (network, random, rita), there's only one contacts column
+      # and they use "ida" instead of "puta"
       if (sname %in% c("network", "random", "rita")) {
         if (!"contacts" %in% names(o)) return(NULL)
         data.frame(
           strategy = slabel,
-          puta = o$puta,
+          puta = o$ida,
           pia = o$pia,
           contacts_small = o$contacts,  # Use same contacts for both assumptions
           contacts_large = o$contacts
         )
       } else {
         # For cluster-based strategies (distsize5, distsize2, growth, ritasecondary)
-        if (!all(c("puta", "pia", "contacts_small", "contacts_large") %in% names(o))) return(NULL)
+        # They use "ida" (same as individual-based) but have separate contacts columns
+        if (!all(c("ida", "pia", "contacts_small", "contacts_large") %in% names(o))) return(NULL)
         data.frame(
           strategy = slabel,
-          puta = o$puta,
+          puta = o$ida,
           pia = o$pia,
           contacts_small = o$contacts_small,
           contacts_large = o$contacts_large
@@ -1003,6 +1005,255 @@ plot_mechanism_analysis <- function(D, G,
     )
   
   return(combined)
+}
+
+
+# =============================================================================
+# plot_paired_comparisons
+# =============================================================================
+#' Plot paired comparisons of strategies vs random baseline
+#'
+#' For each simulation ID, compares strategy outcomes to random strategy.
+#' This controls for simulation-specific network effects.
+#'
+#' @param results The output from run_interventions() or load_cached_results()
+#' @param save_dir Directory to save plots (default "intervention-plots")
+#' @return A list containing the plot objects (distributions and percent)
+#'
+plot_paired_comparisons <- function(results, save_dir = NULL) {
+  require(dplyr)
+  require(ggplot2)
+  require(tidyr)
+
+  if (is.null(save_dir)) {
+    save_dir <- here::here("intervention-plots")
+  }
+  if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
+
+  # Extract details and calculate efficiency metrics for large subnetwork
+  cat("  Calculating efficiency metrics...\n")
+  results_list <- list()
+
+  for (strategy_name in names(results$details)) {
+    data <- results$details[[strategy_name]]$o
+
+    # Handle different column names: cluster-based strategies use "puta", individual-based use "ida"
+    ida_col <- if ("puta" %in% names(data)) "puta" else "ida"
+
+    # For individual-based strategies, contacts_large doesn't exist, just "contacts"
+    contacts_col_large <- if ("contacts_large" %in% names(data)) "contacts_large" else "contacts"
+
+    # puta/ida = IDA (Infectious Days Averted), pia = PIA (Possible Infections Averted)
+    # Filter out rows with 0 contacts (efficiency per contact is undefined)
+    data_with_efficiency <- data %>%
+      filter(.data[[contacts_col_large]] > 0) %>%
+      mutate(
+        intervention = strategy_name,
+        ida_per_contact = .data[[ida_col]] / .data[[contacts_col_large]],
+        pia_per_contact = pia / .data[[contacts_col_large]]
+      ) %>%
+      select(simid, intervention, ida_per_contact, pia_per_contact)
+
+    results_list[[strategy_name]] <- data_with_efficiency
+  }
+
+  results_large <- bind_rows(results_list)
+
+  # Aggregate to simulation level first
+  # Each strategy may have multiple observations per simid (e.g., multiple clusters, multiple random samples)
+  # We need to average within each simulation before doing paired comparison
+  cat("  Aggregating to simulation level...\n")
+  results_by_sim <- results_large %>%
+    group_by(simid, intervention) %>%
+    summarise(
+      ida_per_contact = mean(ida_per_contact, na.rm = TRUE),
+      pia_per_contact = mean(pia_per_contact, na.rm = TRUE),
+      n_obs = n(),
+      .groups = "drop"
+    )
+
+  # Get random strategy results (now one observation per simid)
+  random_results <- results_by_sim %>%
+    filter(intervention == "random") %>%
+    select(simid,
+           ida_random = ida_per_contact,
+           pia_random = pia_per_contact)
+
+  # For each non-random strategy, calculate paired differences
+  paired_results_list <- list()
+
+  strategies <- unique(results_by_sim$intervention)
+  strategies <- strategies[strategies != "random"]
+
+  for (strat in strategies) {
+    strat_data <- results_by_sim %>%
+      filter(intervention == strat) %>%
+      select(simid, intervention, ida_per_contact, pia_per_contact)
+
+    # Join with random results (only keeps simids present in both)
+    paired <- inner_join(strat_data, random_results, by = "simid")
+
+    # Calculate differences (strategy - random)
+    paired <- paired %>%
+      mutate(
+        ida_diff = ida_per_contact - ida_random,
+        pia_diff = pia_per_contact - pia_random,
+        # Only calculate ratios/percentages when baseline is non-zero
+        ida_ratio = ifelse(ida_random > 0, ida_per_contact / ida_random, NA),
+        pia_ratio = ifelse(pia_random > 0, pia_per_contact / pia_random, NA),
+        ida_pct_change = ifelse(ida_random > 0, (ida_per_contact - ida_random) / ida_random * 100, NA),
+        pia_pct_change = ifelse(pia_random > 0, (pia_per_contact - pia_random) / pia_random * 100, NA)
+      )
+
+    paired_results_list[[strat]] <- paired
+  }
+
+  # Combine all strategies
+  paired_results <- bind_rows(paired_results_list)
+
+  # Save results CSV
+  results_dir <- here::here("intervention-results")
+  if (!dir.exists(results_dir)) dir.create(results_dir, recursive = TRUE)
+  output_file <- file.path(results_dir, "paired_comparison_results.csv")
+  write.csv(paired_results, output_file, row.names = FALSE)
+  cat(sprintf("  Saved: %s\n", output_file))
+
+  # Print summary statistics
+  cat("\n  === PAIRED COMPARISON SUMMARY (vs Random Baseline) ===\n")
+  summary_stats <- paired_results %>%
+    group_by(intervention) %>%
+    summarise(
+      n = n(),
+      mean_ida_diff = mean(ida_diff),
+      mean_pia_diff = mean(pia_diff),
+      mean_ida_ratio = mean(ida_ratio, na.rm = TRUE),
+      mean_pia_ratio = mean(pia_ratio, na.rm = TRUE),
+      .groups = "drop"
+    )
+  cat("  Mean differences (positive = strategy better than random):\n")
+  print(summary_stats %>% select(intervention, n, mean_ida_diff, mean_pia_diff))
+
+  # Create visualizations
+  cat("\n  Creating paired comparison plots...\n")
+
+  # Prepare data for plotting (using differences)
+  plot_data_ida <- paired_results %>%
+    select(simid, intervention, ida_diff) %>%
+    mutate(metric = "Infectious Days Averted")
+
+  plot_data_pia <- paired_results %>%
+    select(simid, intervention, pia_diff) %>%
+    rename(ida_diff = pia_diff) %>%
+    mutate(metric = "Possible Infections Averted")
+
+  plot_data <- bind_rows(plot_data_ida, plot_data_pia) %>%
+    rename(value = ida_diff)
+
+  # Define intervention order and labels
+  intervention_name_map <- c(
+    "growth" = "Growth",
+    "rita" = "RITA",
+    "ritasecondary" = "RITA+Secondary",
+    "distsize5" = "Size>=5",
+    "distsize2" = "Size>=2",
+    "network" = "Network"
+  )
+
+  # Order for plotting
+  intervention_order <- c("rita", "ritasecondary", "growth", "distsize5", "network")
+  intervention_labels <- intervention_name_map[intervention_order]
+
+  # Colors (matching existing plots)
+  intervention_colors <- c(
+    "rita" = "#FF7F00",
+    "ritasecondary" = "#F781BF",
+    "growth" = "#4DAF4A",
+    "distsize5" = "#E41A1C",
+    "network" = "#A65628"
+  )
+
+  plot_data <- plot_data %>%
+    filter(intervention %in% intervention_order) %>%
+    mutate(
+      intervention = factor(intervention, levels = intervention_order),
+      intervention_label = intervention_name_map[as.character(intervention)]
+    )
+
+  # Violin plot (similar to efficiency_distributions)
+  p_paired <- ggplot(plot_data, aes(x = intervention_label, y = value, fill = intervention)) +
+    geom_violin(alpha = 0.7, trim = FALSE) +
+    geom_boxplot(width = 0.2, alpha = 0.5, outlier.alpha = 0.3) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
+    stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "black") +
+    scale_fill_manual(values = intervention_colors) +
+    facet_wrap(~ metric, scales = "free_y", ncol = 1) +
+    labs(
+      title = "Paired Comparison: Strategy Performance Relative to Random Baseline",
+      subtitle = "Difference per contact (Strategy - Random) | Large subnetwork | Matched simulations",
+      x = "",
+      y = "Difference from random baseline\n(positive = better than random)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.title = element_text(face = "bold", size = 14),
+      strip.text = element_text(face = "bold", size = 12),
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      panel.grid.major.x = element_blank()
+    )
+
+  # Save distributions plot
+  dist_path <- file.path(save_dir, "paired_comparison_distributions.png")
+  ggsave(dist_path, p_paired, width = 10, height = 8, dpi = 300)
+  cat(sprintf("  Saved: %s\n", dist_path))
+
+  # Additional plot: Percent improvement
+  plot_data_pct_ida <- paired_results %>%
+    select(simid, intervention, ida_pct_change) %>%
+    mutate(metric = "Infectious Days Averted")
+
+  plot_data_pct_pia <- paired_results %>%
+    select(simid, intervention, pia_pct_change) %>%
+    rename(ida_pct_change = pia_pct_change) %>%
+    mutate(metric = "Possible Infections Averted")
+
+  plot_data_pct <- bind_rows(plot_data_pct_ida, plot_data_pct_pia) %>%
+    rename(value = ida_pct_change) %>%
+    filter(intervention %in% intervention_order) %>%
+    mutate(
+      intervention = factor(intervention, levels = intervention_order),
+      intervention_label = intervention_name_map[as.character(intervention)]
+    )
+
+  p_pct <- ggplot(plot_data_pct, aes(x = intervention_label, y = value, fill = intervention)) +
+    geom_violin(alpha = 0.7, trim = FALSE) +
+    geom_boxplot(width = 0.2, alpha = 0.5, outlier.alpha = 0.3) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
+    stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "black") +
+    scale_fill_manual(values = intervention_colors) +
+    coord_cartesian(ylim = c(-1000, 1000)) +
+    facet_wrap(~ metric, scales = "free_y", ncol = 1) +
+    labs(
+      title = "Paired Comparison: Percent Improvement Over Random Baseline",
+      subtitle = "Percent change relative to random | Large subnetwork | Matched simulations\nBlack diamond = mean | Y-axis limited to [-1000%, 1000%]",
+      x = "",
+      y = "Percent improvement over random\n(positive = better than random)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.title = element_text(face = "bold", size = 14),
+      strip.text = element_text(face = "bold", size = 12),
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      panel.grid.major.x = element_blank()
+    )
+
+  # Save percent plot
+  pct_path <- file.path(save_dir, "paired_comparison_percent.png")
+  ggsave(pct_path, p_pct, width = 10, height = 8, dpi = 300)
+  cat(sprintf("  Saved: %s\n", pct_path))
+
+  return(list(distributions = p_paired, percent = p_pct))
 }
 
 

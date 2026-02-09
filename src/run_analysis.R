@@ -147,25 +147,27 @@ load_cached_results <- function() {
 }
 
 #' Generate plots from cached results
-#' 
+#'
 #' @param results Optional: pre-loaded results. If NULL, loads from cache.
+#' @param run_paired Whether to run paired comparison analysis (default TRUE)
 #' @param run_mechanism Whether to run mechanism analysis (default TRUE)
 #' @param n_sims Number of simulations for mechanism analysis (NULL = all)
 #' @return Invisible list of plot objects
-generate_plots_from_cache <- function(results = NULL, 
+generate_plots_from_cache <- function(results = NULL,
+                                       run_paired = TRUE,
                                        run_mechanism = TRUE,
                                        n_sims = NULL) {
-  
+
   plot_dir <- here::here("intervention-plots")
   if (!dir.exists(plot_dir)) dir.create(plot_dir, recursive = TRUE)
-  
+
   # Load cached results if not provided
   if (is.null(results)) {
     results <- load_cached_results()
   }
-  
+
   plots <- list()
-  
+
   # -------------------------------------------------------------------------
   # Plot 1: Efficiency distributions (violin plot)
   # -------------------------------------------------------------------------
@@ -175,9 +177,19 @@ generate_plots_from_cache <- function(results = NULL,
   ggsave(violin_path, p_violin, width = 14, height = 10, dpi = 300)
   cat(sprintf("  Saved: %s\n", violin_path))
   plots$violin <- p_violin
-  
+
   # -------------------------------------------------------------------------
-  # Plot 2: Mechanism analysis
+  # Plot 2: Paired comparison (vs random baseline)
+  # -------------------------------------------------------------------------
+  if (run_paired) {
+    cat("\nGenerating paired comparison plots...\n")
+    p_paired <- plot_paired_comparisons(results, save_dir = plot_dir)
+    plots$paired_distributions <- p_paired$distributions
+    plots$paired_percent <- p_paired$percent
+  }
+
+  # -------------------------------------------------------------------------
+  # Plot 3: Mechanism analysis
   # -------------------------------------------------------------------------
   if (run_mechanism) {
     cat("\nGenerating mechanism analysis plot...\n")
@@ -211,14 +223,15 @@ generate_plots_from_cache <- function(results = NULL,
     )
     plots$mechanism <- p_mechanism
   }
-  
+
   cat("\nAll plots saved to: intervention-plots/\n")
   invisible(plots)
 }
 
 #' Run the full analysis pipeline
-#' 
+#'
 #' @param use_cached If TRUE, use most recent saved results instead of re-running
+#' @param run_paired Whether to run paired comparison analysis (default TRUE)
 #' @param run_mechanism Whether to run mechanism analysis (default TRUE)
 #' @param n_sims Number of simulations for mechanism analysis (NULL = all)
 #' @param d_file Path to D (transmission) data file
@@ -226,6 +239,7 @@ generate_plots_from_cache <- function(results = NULL,
 #' @param ... Additional arguments passed to run_intervention_analysis()
 #' @return Invisible list with results and plots
 run_full_analysis <- function(use_cached = FALSE,
+                               run_paired = TRUE,
                                run_mechanism = TRUE,
                                n_sims = NULL,
                                d_file = "src/experiment1-N10000-gens7-D.csv",
@@ -260,20 +274,25 @@ run_full_analysis <- function(use_cached = FALSE,
   cat("-------------------------------------------------\n")
   plots <- generate_plots_from_cache(
     results = results,
+    run_paired = run_paired,
     run_mechanism = run_mechanism,
     n_sims = n_sims
   )
-  
+
   cat("\n=================================================\n")
   cat("  Pipeline complete!\n")
   cat("=================================================\n")
   cat("\nOutputs:\n")
   cat("  - intervention-results/*.csv (intervention metrics)\n")
-  cat("  - intervention-plots/efficiency_distributions_violin.pdf\n")
+  cat("  - intervention-plots/efficiency_distributions.png\n")
+  if (run_paired) {
+    cat("  - intervention-plots/paired_comparison_distributions.png\n")
+    cat("  - intervention-plots/paired_comparison_percent.png\n")
+  }
   if (run_mechanism) {
     cat("  - intervention-plots/mechanism_analysis.png\n")
   }
-  
+
   invisible(list(results = results, plots = plots))
 }
 
