@@ -110,7 +110,7 @@ run_intervention_analysis <- function(
   distance_threshold = 0.005,
   network_degree_threshold = 4,
   partner_notification_window_months = 6,  # 6 months (180d) or 3 months (90d) lookback for contact tracing
-  random_coverage = 0.10,  # 10% of eligible population
+  random_coverage = 0.30,  # 30% of eligible population
   rita_window_months = 6, # average RITA detection window
   lookback_window_months = 6, # growth-rate trigger window
   growth_distance_threshold = 0.01, # separate D for growth-based trigger
