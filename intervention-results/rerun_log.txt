@@ -1,0 +1,29 @@
+here() starts at /Users/katiito/Dropbox/Work/HIV_clustermodelling/cdrbpm
+
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   Re-running intervention analysis with simid preservation      ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   🧬  HIV Cluster Intervention Analysis Pipeline  🧬            ║
+║                                                                  ║
+║   Welcome! Ready to analyze intervention strategies.            ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+This will take several minutes...
+
+=================================================
+  Intervention Analysis Pipeline
+=================================================
+
+STEP 1: Running intervention analysis (this takes ~2 minutes)
+-------------------------------------------------
+Error in run_intervention_analysis(d_file = d_file, g_file = g_file, ...) : 
+  unused argument (save_results = TRUE)
+Calls: run_full_analysis
+Execution halted

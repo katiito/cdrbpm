@@ -349,52 +349,67 @@ run_intervention_analysis <- function(
         High_PIA = pia_vec[5])
     }
 
-    # Build rows list
-    rows <- list(
-      # Size=5: small and large rows
-      build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "small",
-                ods5$total_contacts_small, ods5$ida_small, ods5$pia_small),
-      build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "large",
-                ods5$total_contacts_large, ods5$ida_large, ods5$pia_large),
-      # Size=2: small and large rows
-      build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "small",
-                ods2$total_contacts_small, ods2$ida_small, ods2$pia_small),
-      build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "large",
-                ods2$total_contacts_large, ods2$ida_large, ods2$pia_large),
-      # Growth: small and large rows
-      build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "small",
-                ogrowth$total_contacts_small, ogrowth$ida_small, ogrowth$pia_small),
-      build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "large",
-                ogrowth$total_contacts_large, ogrowth$ida_large, ogrowth$pia_large),
-      # Individual-based strategies: single row each (subnetwork = NA)
-      build_row(paste0('Random,', round(100*random_coverage), '%'), "-", orand$total_contacts, orand$ida, orand$pia),
-      build_row('RITA', "-", orita$total_contacts, orita$ida, orita$pia),
-      build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$ida, onet$pia),
-      # RITA+Secondary: cluster-based (small and large rows)
-      build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "small",
-                oritasec$total_contacts_small, oritasec$ida_small, oritasec$pia_small),
-      build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "large",
-                oritasec$total_contacts_large, oritasec$ida_large, oritasec$pia_large)
-    )
+    # Build summary table (wrap in tryCatch to handle potential issues)
+    odf <- tryCatch({
+      # Build rows list
+      rows <- list(
+        # Size=5: small and large rows
+        build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "small",
+                  ods5$total_contacts_small, ods5$ida_small, ods5$pia_small),
+        build_row(paste0('Size=', cluster_size_5, ',D=', distance_threshold), "large",
+                  ods5$total_contacts_large, ods5$ida_large, ods5$pia_large),
+        # Size=2: small and large rows
+        build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "small",
+                  ods2$total_contacts_small, ods2$ida_small, ods2$pia_small),
+        build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "large",
+                  ods2$total_contacts_large, ods2$ida_large, ods2$pia_large),
+        # Growth: small and large rows
+        build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "small",
+                  ogrowth$total_contacts_small, ogrowth$ida_small, ogrowth$pia_small),
+        build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "large",
+                  ogrowth$total_contacts_large, ogrowth$ida_large, ogrowth$pia_large),
+        # Individual-based strategies: single row each (subnetwork = NA)
+        build_row(paste0('Random,', round(100*random_coverage), '%'), "-", orand$total_contacts, orand$ida, orand$pia),
+        build_row('RITA', "-", orita$total_contacts, orita$ida, orita$pia),
+        build_row(paste0('Network,partners>', network_degree_threshold), "-", onet$total_contacts, onet$ida, onet$pia),
+        # RITA+Secondary: cluster-based (small and large rows)
+        build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "small",
+                  oritasec$total_contacts_small, oritasec$ida_small, oritasec$pia_small),
+        build_row(paste0('RITA+Secondary,W=', rita_window_months, 'mo'), "large",
+                  oritasec$total_contacts_large, oritasec$ida_large, oritasec$pia_large)
+      )
 
-    # Use incremental rbind instead of do.call(rbind, rows)
-    # do.call has issues with named vectors
-    odf_mat <- rows[[1]]
-    for (i in 2:length(rows)) {
-      odf_mat <- rbind(odf_mat, rows[[i]])
+      # Use incremental rbind instead of do.call(rbind, rows)
+      # do.call has issues with named vectors
+      odf_mat <- rows[[1]]
+      for (i in 2:length(rows)) {
+        odf_mat <- rbind(odf_mat, rows[[i]])
+      }
+      odf_temp <- as.data.frame(odf_mat, stringsAsFactors = FALSE)
+
+      # Convert numeric columns from character
+      num_cols <- c("Contacts", "Total_PUTA", "IDA/contact", "Median_PUTA", "Low_PUTA", "High_PUTA",
+                    "Total_PIA", "PIA/contact", "Median_PIA", "Low_PIA", "High_PIA")
+      odf_temp[num_cols] <- lapply(odf_temp[num_cols], as.numeric)
+
+      odf_temp
+    }, error = function(e) {
+      cat("\nWarning: Could not build summary table. Details files will still be saved.\n")
+      cat("Error message:", e$message, "\n")
+      NULL
+    })
+    # Round numeric columns if summary table was successfully created
+    odf1 <- if (!is.null(odf)) {
+      # Round IDA metrics to 0dp, PIA per-contact metrics to 2dp
+      cols_0dp <- c("Contacts", "Total_PUTA", "IDA/contact", "Median_PUTA", "Low_PUTA", "High_PUTA", "Total_PIA")
+      cols_2dp <- c("PIA/contact", "Median_PIA", "Low_PIA", "High_PIA")
+      odf_rounded <- odf
+      odf_rounded[cols_0dp] <- lapply(odf[cols_0dp], function(x) round(x, 0))
+      odf_rounded[cols_2dp] <- lapply(odf[cols_2dp], function(x) round(x, 2))
+      odf_rounded
+    } else {
+      NULL
     }
-    odf <- as.data.frame(odf_mat, stringsAsFactors = FALSE)
-    
-    # Convert numeric columns from character
-    num_cols <- c("Contacts", "Total_IDA", "IDA/contact", "Median_IDA", "Low_IDA", "High_IDA",
-                  "Total_PIA", "PIA/contact", "Median_PIA", "Low_PIA", "High_PIA")
-    odf[num_cols] <- lapply(odf[num_cols], as.numeric)
-    odf1 <- odf
-    # Round IDA metrics to 0dp, PIA per-contact metrics to 2dp
-    cols_0dp <- c("Contacts", "Total_IDA", "IDA/contact", "Median_IDA", "Low_IDA", "High_IDA", "Total_PIA")
-    cols_2dp <- c("PIA/contact", "Median_PIA", "Low_PIA", "High_PIA")
-    odf1[cols_0dp] <- lapply(odf1[cols_0dp], function(x) round(x, 0))
-    odf1[cols_2dp] <- lapply(odf1[cols_2dp], function(x) round(x, 2))
 
     # Secondary counts table: units and contacts per strategy
     counts_df <- data.frame(
@@ -426,9 +441,11 @@ run_intervention_analysis <- function(
       # Generate timestamp for unique filenames
       timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
       
-      # Save summary table
-      summary_path <- file.path(output_dir, paste0("summary_", timestamp, ".csv"))
-      write.csv(odf, summary_path, row.names = FALSE)
+      # Save summary table (if it was successfully created)
+      if (!is.null(odf1)) {
+        summary_path <- file.path(output_dir, paste0("summary_", timestamp, ".csv"))
+        write.csv(odf1, summary_path, row.names = FALSE)
+      }
       
       # Save counts table
       counts_path <- file.path(output_dir, paste0("counts_", timestamp, ".csv"))
@@ -1238,35 +1255,39 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
     } else {
       G1$total_contacts <- with(G1, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
     }
-    
+
+    # Save simid before modifying pid (for paired comparison analysis)
+    G1_simid <- G1$simid
+
     # Make PIDs unique across simulations by appending simid
     G1$pid <- paste(sep='.', G1$pid, G1$simid )
     D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
-    
+
     # Set intervention time at diagnosis + implementation delay
     G1$IT <- G1$timediagnosed + implementation_delay_days
-    
+
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, total_contacts) {
       # Find all contacts: recipients (transmitted to), self, donors (transmitted from)
-      piapids <- D$recipient[ D$donor == pid] |> 
-        union( c( pid, D$donor[D$recipient==pid] )) 
-      
+      piapids <- D$recipient[ D$donor == pid] |>
+        union( c( pid, D$donor[D$recipient==pid] ))
+
       G2 <- G[ G$pid %in% piapids , ]
       pia <- sum( G2$timeinfected > IT )
-      
+
       G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       ida <- sum( G3$timediagnosed - IT )
-      
+
       # Contacts = total_contacts + 1 (self)
       c( pia, ida, total_contacts + 1 )
     }
-    
+
     mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts ) -> o
     o <- as.data.frame( t( o ) )
     colnames(o) <- c('pia', 'ida', 'contacts' )
+    o$simid <- as.character(G1_simid)  # Add simid for paired comparison
 
     # Compute summary statistics (same structure as cluster-based)
     # Quantiles: 10th and 90th percentiles used uniformly for all metrics
@@ -1348,38 +1369,42 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
     } else {
       G1$total_contacts <- with(G1, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
     }
-    
+
+    # Save simid before modifying pid (for paired comparison analysis)
+    G1_simid <- G1$simid
+
     # Make PIDs unique across simulations
     G1$pid <- paste(sep = '.', G1$pid, G1$simid)
     D <- Dall; D$donor <- paste(sep='.', D$donor, D$simid )
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
-    
+
     # Set intervention time at diagnosis + implementation delay
     G1$IT <- G1$timediagnosed + implementation_delay_days
-    
+
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, total_contacts) {
-      piapids <- D$recipient[D$donor == pid] |> 
+      piapids <- D$recipient[D$donor == pid] |>
         union(c(pid, D$donor[D$recipient == pid]))
-      
+
       G2 <- G[G$pid %in% piapids, ]
       pia <- sum(G2$timeinfected > IT)
-      
+
       G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       ida <- sum(G3$timediagnosed - IT)
-      
+
       c(pia, ida, total_contacts + 1)
     }
-    
+
     # Process all RITA-positive cases
     results <- matrix(nrow = nrow(G1), ncol = 3)
     for (i in seq_len(nrow(G1))) {
       results[i, ] <- proc_indiv(G1$pid[i], G1$IT[i], G1$total_contacts[i])
     }
-    
+
     o <- as.data.frame(results)
     colnames(o) <- c('pia', 'ida', 'contacts')
+    o$simid <- as.character(G1_simid)  # Add simid for paired comparison
 
     # Compute summary statistics (same structure as cluster-based)
     # Quantiles: 10th and 90th percentiles used uniformly for all metrics
@@ -1438,57 +1463,66 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
                                   partner_notification_window_months = 6)
 {
   lastgeneration <- max(Gall$generation)
-  
+
+  # Calculate total contacts based on partner notification window BEFORE modifying pids
+  # Use 90-day columns for 3-month window, 180-day columns for 6-month window
+  if (partner_notification_window_months == 3) {
+    Gall$total_contacts <- with(Gall, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
+  } else {
+    # Default to 6 months (180 days)
+    Gall$total_contacts <- with(Gall, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+  }
+
+  # Filter to high-contact individuals in generations 2+ (excluding last) BEFORE modifying pids
+  G1_filter <- (Gall$total_contacts >= network_degree_threshold) &
+               (Gall$generation > 0) &
+               (Gall$generation < lastgeneration)
+
+  if (!any(G1_filter)) {
+    return(list(
+      o = data.frame(pia = numeric(0), ida = numeric(0), contacts = numeric(0)),
+      propintervened = 0,
+      n_units = 0,
+      ida = c(0, 0, 0, 0, 0),
+      pia = c(0, 0, 0, 0, 0),
+      total_contacts = 0
+    ))
+  }
+
+  # Save simid for filtered cases (for paired comparison analysis)
+  G1_simid <- Gall$simid[G1_filter]
+
   # Make PIDs unique across simulations
   D <- Dall
   D$donor <- paste(sep = '.', D$donor, D$simid)
   D$recipient <- paste(sep = '.', D$recipient, D$simid)
   G <- Gall
   G$pid <- paste(sep = '.', G$pid, G$simid)
-  
-  # Calculate total contacts based on partner notification window
-  # Use 90-day columns for 3-month window, 180-day columns for 6-month window
-  if (partner_notification_window_months == 3) {
-    G$total_contacts <- with(G, Fcontacts_90d + Gcontacts_90d + Hcontacts_90d)
-  } else {
-    # Default to 6 months (180 days)
-    G$total_contacts <- with(G, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
+
+  # Apply filter after pid modification
+  G1 <- G[G1_filter, ]
+
+  # Set intervention time at diagnosis + implementation delay
+  G1$IT <- G1$timediagnosed + implementation_delay_days
+
+  # Process individual intervention outcomes
+  proc_indiv <- function(pid, IT, total_contacts) {
+    piapids <- D$recipient[D$donor == pid] |>
+      union(c(pid, D$donor[D$recipient == pid]))
+
+    G2 <- G[G$pid %in% piapids, ]
+    pia <- sum(G2$timeinfected > IT)
+
+    G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
+    ida <- sum(G3$timediagnosed - IT)
+
+    c(pia, ida, total_contacts + 1)  # +1 for the index case
   }
-  
-  # Filter to high-contact individuals in generations 2+ (excluding last)
-  G1 <- G[ (G$total_contacts >= network_degree_threshold) & (G$generation > 0) & (G$generation < lastgeneration), ]
-    
-    if (nrow(G1) == 0) {
-      return(list(
-        o = data.frame(pia = numeric(0), ida = numeric(0), contacts = numeric(0)),
-        propintervened = 0,
-        n_units = 0,
-        ida = c(0, 0, 0, 0, 0),
-        pia = c(0, 0, 0, 0, 0),
-        total_contacts = 0
-      ))
-    }
-    
-    # Set intervention time at diagnosis + implementation delay
-    G1$IT <- G1$timediagnosed + implementation_delay_days
-    
-    # Process individual intervention outcomes
-    proc_indiv <- function(pid, IT, total_contacts) {
-      piapids <- D$recipient[D$donor == pid] |> 
-        union(c(pid, D$donor[D$recipient == pid]))
-      
-      G2 <- G[G$pid %in% piapids, ]
-      pia <- sum(G2$timeinfected > IT)
-      
-      G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-      ida <- sum(G3$timediagnosed - IT)
-      
-      c(pia, ida, total_contacts + 1)  # +1 for the index case
-    }
-    
-    mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts) -> o
-    o <- as.data.frame(t(o))
-    colnames(o) <- c('pia', 'ida', 'contacts')
+
+  mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts) -> o
+  o <- as.data.frame(t(o))
+  colnames(o) <- c('pia', 'ida', 'contacts')
+  o$simid <- as.character(G1_simid)  # Add simid for paired comparison
 
     # Compute summary statistics (same structure as cluster-based)
     # Quantiles: 10th and 90th percentiles used uniformly for all metrics
@@ -1575,6 +1609,9 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
       total_contacts_large = 0
     ))
   }
+
+  # Save simid before modifying pid (for paired comparison analysis)
+  G_rita_simid <- G_rita$simid
 
   # Make PIDs unique across simulations
   G_rita$pid <- paste(sep = '.', G_rita$pid, G_rita$simid)
@@ -1708,6 +1745,7 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     ida <- sum(G3$timediagnosed - IT)
 
     results[[i]] <- data.frame(
+      simid = as.character(G_rita_simid[i]),  # Add simid for paired comparison
       pia = pia,
       ida = ida,
       interventiontime = IT,
