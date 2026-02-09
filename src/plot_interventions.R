@@ -1172,42 +1172,7 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
     "network" = "#A65628"
   )
 
-  plot_data <- plot_data %>%
-    filter(intervention %in% intervention_order) %>%
-    mutate(
-      intervention = factor(intervention, levels = intervention_order),
-      intervention_label = intervention_name_map[as.character(intervention)]
-    )
-
-  # Violin plot (similar to efficiency_distributions)
-  p_paired <- ggplot(plot_data, aes(x = intervention_label, y = value, fill = intervention)) +
-    geom_violin(alpha = 0.7, trim = FALSE) +
-    geom_boxplot(width = 0.2, alpha = 0.5, outlier.alpha = 0.3) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
-    stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "black") +
-    scale_fill_manual(values = intervention_colors) +
-    facet_wrap(~ metric, scales = "free_y", ncol = 1) +
-    labs(
-      title = "Paired Comparison: Strategy Performance Relative to Random Baseline",
-      subtitle = "Difference per contact (Strategy - Random) | Large subnetwork | Matched simulations",
-      x = "",
-      y = "Difference from random baseline\n(positive = better than random)"
-    ) +
-    theme_minimal(base_size = 12) +
-    theme(
-      plot.title = element_text(face = "bold", size = 14),
-      strip.text = element_text(face = "bold", size = 12),
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      legend.position = "none",
-      panel.grid.major.x = element_blank()
-    )
-
-  # Save distributions plot
-  dist_path <- file.path(save_dir, "paired_comparison_distributions.png")
-  ggsave(dist_path, p_paired, width = 10, height = 8, dpi = 300)
-  cat(sprintf("  Saved: %s\n", dist_path))
-
-  # Additional plot: Percent improvement
+  # Percent improvement plot
   plot_data_pct_ida <- paired_results %>%
     select(simid, intervention, ida_pct_change) %>%
     mutate(metric = "Infectious Days Averted")
@@ -1231,11 +1196,11 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
     geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
     stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "black") +
     scale_fill_manual(values = intervention_colors) +
-    coord_cartesian(ylim = c(-1000, 1000)) +
-    facet_wrap(~ metric, scales = "free_y", ncol = 1) +
+    coord_cartesian(ylim = c(-500, 1000)) +
+    facet_wrap(~ metric, ncol = 1) +
     labs(
       title = "Paired Comparison: Percent Improvement Over Random Baseline",
-      subtitle = "Percent change relative to random | Large subnetwork | Matched simulations\nBlack diamond = mean | Y-axis limited to [-1000%, 1000%]",
+      subtitle = "Percent change relative to random | Large subnetwork | Matched simulations\nBlack diamond = mean | Y-axis limited to [-500%, 1000%]",
       x = "",
       y = "Percent improvement over random\n(positive = better than random)"
     ) +
@@ -1253,7 +1218,7 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
   ggsave(pct_path, p_pct, width = 10, height = 8, dpi = 300)
   cat(sprintf("  Saved: %s\n", pct_path))
 
-  return(list(distributions = p_paired, percent = p_pct))
+  return(list(percent = p_pct))
 }
 
 

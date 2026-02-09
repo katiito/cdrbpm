@@ -182,9 +182,8 @@ generate_plots_from_cache <- function(results = NULL,
   # Plot 2: Paired comparison (vs random baseline)
   # -------------------------------------------------------------------------
   if (run_paired) {
-    cat("\nGenerating paired comparison plots...\n")
+    cat("\nGenerating paired comparison plot...\n")
     p_paired <- plot_paired_comparisons(results, save_dir = plot_dir)
-    plots$paired_distributions <- p_paired$distributions
     plots$paired_percent <- p_paired$percent
   }
 
@@ -286,7 +285,6 @@ run_full_analysis <- function(use_cached = FALSE,
   cat("  - intervention-results/*.csv (intervention metrics)\n")
   cat("  - intervention-plots/efficiency_distributions.png\n")
   if (run_paired) {
-    cat("  - intervention-plots/paired_comparison_distributions.png\n")
     cat("  - intervention-plots/paired_comparison_percent.png\n")
   }
   if (run_mechanism) {
