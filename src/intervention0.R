@@ -9,13 +9,15 @@
 #   - Potential Infections Averted (PIA)
 #   - Contact tracing efficiency
 #
-# The six intervention strategies implemented are:
+# The eight intervention strategies implemented are:
 #   1. Distance-size (k=5): Trigger when 5 cases within genetic distance threshold
 #   2. Distance-size (k=2): Trigger when 2 cases within genetic distance threshold
-#   3. Growth-rate: Trigger when k infections occur within a time window
-#   4. Random allocation: Baseline comparator with randomly selected individuals
-#   5. RITA (Recent Infection Testing Algorithm): Target recently infected cases
-#   6. Network degree: Target high-degree (well-connected) individuals
+#   3. Growth-rate (k=5): Trigger when 5 infections occur within a time window
+#   4. Growth-rate (k=2): Trigger when 2 infections occur within a time window
+#   5. Random allocation: Baseline comparator with randomly selected individuals
+#   6. RITA (Recent Infection Testing Algorithm): Target recently infected cases
+#   7. Network degree: Target high-degree (well-connected) individuals
+#   8. RITA+Secondary: RITA with secondary contact tracing
 #
 # Input data:
 #   - D file (transmissions): donor, recipient, distance, timetransmission, simid
@@ -182,11 +184,11 @@ run_intervention_analysis <- function(
     # -------------------------------------------------------------------------
     # Run all six intervention strategies
     # -------------------------------------------------------------------------
-    cat("Running interventions (6 strategies)...\n")
+    cat("Running interventions (8 strategies)...\n")
     t_start <- Sys.time()
 
     # Strategy 1: Distance-size with cluster_size = 5
-    cat("  [1/6] Distance-size (size=", cluster_size_5, ", D=", distance_threshold, ")...", sep = "")
+    cat("  [1/8] Distance-size (size=", cluster_size_5, ", D=", distance_threshold, ")...", sep = "")
     ods5 <- tryCatch(
       distsize_intervention(
         Ds = Ds, Gs = Gs, Gall = Gall,
@@ -207,7 +209,7 @@ run_intervention_analysis <- function(
     cat(" done (", ods5$n_units, " units)\n", sep = "")
 
     # Strategy 2: Distance-size with cluster_size = 2
-    cat("  [2/6] Distance-size (size=", cluster_size_2, ", D=", distance_threshold, ")...", sep = "")
+    cat("  [2/8] Distance-size (size=", cluster_size_2, ", D=", distance_threshold, ")...", sep = "")
     ods2 <- tryCatch(
       distsize_intervention(
         Ds = Ds, Gs = Gs, Gall = Gall,
@@ -227,8 +229,8 @@ run_intervention_analysis <- function(
     )
     cat(" done (", ods2$n_units, " units)\n", sep = "")
 
-    # Strategy 3: Growth-rate based intervention
-    cat("  [3/6] Growth-rate (size=", cluster_size_5, ", W=", lookback_window_months, "mo, D=", growth_distance_threshold, ")...", sep = "")
+    # Strategy 3: Growth-rate based intervention (size=5)
+    cat("  [3/8] Growth-rate (size=", cluster_size_5, ", W=", lookback_window_months, "mo, D=", growth_distance_threshold, ")...", sep = "")
     ogrowth <- tryCatch(
       growthrate_intervention(
         Ds = Ds, Gs = Gs, Gall = Gall,
@@ -249,8 +251,30 @@ run_intervention_analysis <- function(
     )
     cat(" done (", ogrowth$n_units, " units)\n", sep = "")
 
-    # Strategy 4: Random allocation (baseline comparator)
-    cat("  [4/6] Random allocation (", round(100*random_coverage), "% coverage, n=", random_sample_size, ")...", sep = "")
+    # Strategy 4: Growth-rate based intervention (size=2)
+    cat("  [4/8] Growth-rate (size=", cluster_size_2, ", W=", lookback_window_months, "mo, D=", growth_distance_threshold, ")...", sep = "")
+    ogrowth2 <- tryCatch(
+      growthrate_intervention(
+        Ds = Ds, Gs = Gs, Gall = Gall,
+        growth_distance_threshold = growth_distance_threshold,
+        cluster_size = cluster_size_2,
+        lookback_window_months = lookback_window_months,
+        analysis_delay_days = analysis_delay_days,
+        implementation_delay_days = implementation_delay_days,
+        partner_notification_window_months = partner_notification_window_months
+      ),
+      error = function(e) {
+        cat(" ERROR:", e$message, "\n")
+        list(propintervened = 0, n_units = 0,
+             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
+             total_contacts_small = 0, total_contacts_large = 0)
+      }
+    )
+    cat(" done (", ogrowth2$n_units, " units)\n", sep = "")
+
+    # Strategy 5: Random allocation (baseline comparator)
+    cat("  [5/8] Random allocation (", round(100*random_coverage), "% coverage, n=", random_sample_size, ")...", sep = "")
     orand <- tryCatch(
       random_intervention(
         Dall = Dall, Gall = Gall,
@@ -266,8 +290,8 @@ run_intervention_analysis <- function(
     )
     cat(" done (", orand$n_units, " units)\n", sep = "")
 
-    # Strategy 5: RITA (Recent Infection Testing Algorithm)
-    cat("  [5/6] RITA (window=", rita_window_months, "mo)...", sep = "")
+    # Strategy 6: RITA (Recent Infection Testing Algorithm)
+    cat("  [6/8] RITA (window=", rita_window_months, "mo)...", sep = "")
     orita <- tryCatch(
       rita_intervention(
         Dall = Dall, Gall = Gall,
@@ -283,8 +307,8 @@ run_intervention_analysis <- function(
     )
     cat(" done (", orita$n_units, " units)\n", sep = "")
 
-    # Strategy 6: Network degree-based intervention
-    cat("  [6/7] Network degree (threshold=", network_degree_threshold, ", window=", partner_notification_window_months, "mo)...", sep = "")
+    # Strategy 7: Network degree-based intervention
+    cat("  [7/8] Network degree (threshold=", network_degree_threshold, ", window=", partner_notification_window_months, "mo)...", sep = "")
     onet <- tryCatch(
       network_intervention(
         Dall = Dall, Gall = Gall,
@@ -300,8 +324,8 @@ run_intervention_analysis <- function(
     )
     cat(" done (", onet$n_units, " units)\n", sep = "")
 
-    # Strategy 7: RITA + Secondary Contact Tracing
-    cat("  [7/7] RITA+Secondary (window=", rita_window_months, "mo, lookback=", partner_notification_window_months, "mo)...", sep = "")
+    # Strategy 8: RITA + Secondary Contact Tracing
+    cat("  [8/8] RITA+Secondary (window=", rita_window_months, "mo, lookback=", partner_notification_window_months, "mo)...", sep = "")
     oritasec <- tryCatch(
       rita_secondary_intervention(
         Dall = Dall, Gall = Gall,
@@ -363,11 +387,16 @@ run_intervention_analysis <- function(
                   ods2$total_contacts_small, ods2$ida_small, ods2$pia_small),
         build_row(paste0('Size=', cluster_size_2, ',D=', distance_threshold), "large",
                   ods2$total_contacts_large, ods2$ida_large, ods2$pia_large),
-        # Growth: small and large rows
+        # Growth (size=5): small and large rows
         build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "small",
                   ogrowth$total_contacts_small, ogrowth$ida_small, ogrowth$pia_small),
         build_row(paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "large",
                   ogrowth$total_contacts_large, ogrowth$ida_large, ogrowth$pia_large),
+        # Growth (size=2): small and large rows
+        build_row(paste0('Growth,size=', cluster_size_2, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "small",
+                  ogrowth2$total_contacts_small, ogrowth2$ida_small, ogrowth2$pia_small),
+        build_row(paste0('Growth,size=', cluster_size_2, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold), "large",
+                  ogrowth2$total_contacts_large, ogrowth2$ida_large, ogrowth2$pia_large),
         # Individual-based strategies: single row each (subnetwork = NA)
         build_row(paste0('Random,', round(100*random_coverage), '%'), "-", orand$total_contacts, orand$ida, orand$pia),
         build_row('RITA', "-", orita$total_contacts, orita$ida, orita$pia),
@@ -417,15 +446,16 @@ run_intervention_analysis <- function(
         paste0('Size=', cluster_size_5, ',D=', distance_threshold),
         paste0('Size=', cluster_size_2, ',D=', distance_threshold),
         paste0('Growth,size=', cluster_size_5, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
+        paste0('Growth,size=', cluster_size_2, ',W=', lookback_window_months, 'mo,D=', growth_distance_threshold),
         paste0('Random,', round(100*random_coverage), '%'),
         'RITA',
         paste0('Network,partners>', network_degree_threshold),
         paste0('RITA+Secondary,W=', rita_window_months, 'mo')
       ),
-      Units = c(ods5$n_units, ods2$n_units, ogrowth$n_units, orand$n_units, orita$n_units, onet$n_units, oritasec$n_units),
-      Contacts_Small = round(c(ods5$total_contacts_small, ods2$total_contacts_small, ogrowth$total_contacts_small,
+      Units = c(ods5$n_units, ods2$n_units, ogrowth$n_units, ogrowth2$n_units, orand$n_units, orita$n_units, onet$n_units, oritasec$n_units),
+      Contacts_Small = round(c(ods5$total_contacts_small, ods2$total_contacts_small, ogrowth$total_contacts_small, ogrowth2$total_contacts_small,
                                orand$total_contacts, orita$total_contacts, onet$total_contacts, oritasec$total_contacts_small), 0),
-      Contacts_Large = round(c(ods5$total_contacts_large, ods2$total_contacts_large, ogrowth$total_contacts_large,
+      Contacts_Large = round(c(ods5$total_contacts_large, ods2$total_contacts_large, ogrowth$total_contacts_large, ogrowth2$total_contacts_large,
                                orand$total_contacts, orita$total_contacts, onet$total_contacts, oritasec$total_contacts_large), 0)
     )
 
@@ -462,10 +492,15 @@ run_intervention_analysis <- function(
         ods2$o$strategy <- paste0("Size=", cluster_size_2, ",D=", distance_threshold)
         write.csv(ods2$o, file.path(output_dir, paste0("details_distsize2_", timestamp, ".csv")), row.names = FALSE)
       }
-      # Growth-rate
+      # Growth-rate (size=5)
       if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) {
         ogrowth$o$strategy <- paste0("Growth,size=", cluster_size_5, ",W=", lookback_window_months, "mo,D=", growth_distance_threshold)
-        write.csv(ogrowth$o, file.path(output_dir, paste0("details_growth_", timestamp, ".csv")), row.names = FALSE)
+        write.csv(ogrowth$o, file.path(output_dir, paste0("details_growth5_", timestamp, ".csv")), row.names = FALSE)
+      }
+      # Growth-rate (size=2)
+      if (!is.null(ogrowth2$o) && nrow(ogrowth2$o) > 0) {
+        ogrowth2$o$strategy <- paste0("Growth,size=", cluster_size_2, ",W=", lookback_window_months, "mo,D=", growth_distance_threshold)
+        write.csv(ogrowth2$o, file.path(output_dir, paste0("details_growth2_", timestamp, ".csv")), row.names = FALSE)
       }
       # Random
       if (!is.null(orand$o) && nrow(orand$o) > 0) {
@@ -492,7 +527,8 @@ run_intervention_analysis <- function(
       all_details <- list()
       if (!is.null(ods5$o) && nrow(ods5$o) > 0) all_details$distsize5 <- ods5$o
       if (!is.null(ods2$o) && nrow(ods2$o) > 0) all_details$distsize2 <- ods2$o
-      if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) all_details$growth <- ogrowth$o
+      if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) all_details$growth5 <- ogrowth$o
+      if (!is.null(ogrowth2$o) && nrow(ogrowth2$o) > 0) all_details$growth2 <- ogrowth2$o
       if (!is.null(oritasec$o) && nrow(oritasec$o) > 0) all_details$ritasecondary <- oritasec$o
       # Random/RITA/Network have different column structures; combine cluster-based ones only
       if (length(all_details) > 0) {
@@ -561,9 +597,10 @@ run_intervention_analysis <- function(
       distsize5_nc <- if (!is.null(ods5$o) && nrow(ods5$o) > 0) ods5$o$nc else numeric(0)
       distsize2_nc <- if (!is.null(ods2$o) && nrow(ods2$o) > 0) ods2$o$nc else numeric(0)
       growth_nc <- if (!is.null(ogrowth$o) && nrow(ogrowth$o) > 0) ogrowth$o$nc else numeric(0)
+      growth2_nc <- if (!is.null(ogrowth2$o) && nrow(ogrowth2$o) > 0) ogrowth2$o$nc else numeric(0)
       ritasec_nc <- if (!is.null(oritasec$o) && nrow(oritasec$o) > 0) oritasec$o$nc else numeric(0)
 
-      if (length(distsize5_nc) > 0 || length(distsize2_nc) > 0 || length(growth_nc) > 0 || length(ritasec_nc) > 0) {
+      if (length(distsize5_nc) > 0 || length(distsize2_nc) > 0 || length(growth_nc) > 0 || length(growth2_nc) > 0 || length(ritasec_nc) > 0) {
         # Combine into data frame for plotting
         plot_df <- rbind(
           if (length(distsize5_nc) > 0)
@@ -574,6 +611,9 @@ run_intervention_analysis <- function(
           else NULL,
           if (length(growth_nc) > 0)
             data.frame(strategy = paste0('Growth-rate (k=', cluster_size_5, ', W=', lookback_window_months, 'mo)'), nc = growth_nc)
+          else NULL,
+          if (length(growth2_nc) > 0)
+            data.frame(strategy = paste0('Growth-rate (k=', cluster_size_2, ', W=', lookback_window_months, 'mo)'), nc = growth2_nc)
           else NULL,
           if (length(ritasec_nc) > 0)
             data.frame(strategy = paste0('RITA+Secondary (W=', rita_window_months, 'mo)'), nc = ritasec_nc)
@@ -615,7 +655,8 @@ run_intervention_analysis <- function(
       details = list(
         distsize5 = ods5,
         distsize2 = ods2,
-        growth = ogrowth,
+        growth5 = ogrowth,
+        growth2 = ogrowth2,
         random = orand,
         rita = orita,
         network = onet,
