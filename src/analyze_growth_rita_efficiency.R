@@ -17,7 +17,7 @@ Gall <- read.csv('src/experiment1-N10000-gens7-G.csv')
 
 # Load the most recent growth cluster results
 growth_files <- list.files('intervention-results/',
-                           pattern = 'details_growth_.*\\.csv',
+                           pattern = 'details_growth5_.*\\.csv',
                            full.names = TRUE)
 latest_growth_file <- sort(growth_files, decreasing = TRUE)[1]
 cat('Loading growth cluster results from:', latest_growth_file, '\n')

@@ -36,8 +36,8 @@ plot_efficiency_distributions <- function(results,
   }
 
   # Strategy names and display labels
-  strategy_names <- c("distsize5", "distsize2", "growth", "random", "rita", "network", "ritasecondary")
-  strategy_labels <- c("Size>=5", "Size>=2", "Growth", "Random", "RITA", "Network", "RITA+Secondary")
+  strategy_names <- c("distsize5", "distsize2", "growth5", "growth2", "random", "rita", "network", "ritasecondary")
+  strategy_labels <- c("Size>=5", "Size>=2", "Growth (k=5)", "Growth (k=2)", "Random", "RITA", "Network", "RITA+Secondary")
   
   # Extract per-unit data from each strategy's results
   extract_data <- function(details) {
@@ -102,13 +102,14 @@ plot_efficiency_distributions <- function(results,
   strategy_colors <- c(
     "Size>=5" = "#E41A1C",
     "Size>=2" = "#377EB8",
-    "Growth" = "#4DAF4A",
+    "Growth (k=5)" = "#4DAF4A",
+    "Growth (k=2)" = "#66C266",
     "Random" = "#984EA3",
     "RITA" = "#FF7F00",
     "Network" = "#A65628",
     "RITA+Secondary" = "#F781BF"
   )
-  
+
   # Pseudo-log transformation using asinh for smoother behavior near zero
   # asinh(x) ≈ x for small x, and ≈ sign(x)*log(2|x|) for large |x|
   # Scale factor adjusts the transition point - higher = more expansion near zero
@@ -280,7 +281,8 @@ plot_mechanism_analysis <- function(D, G,
   strategy_colors <- c(
     "Size>=5" = "#E41A1C",
     "Size>=2" = "#377EB8",
-    "Growth" = "#4DAF4A",
+    "Growth (k=5)" = "#4DAF4A",
+    "Growth (k=2)" = "#66C266",
     "Random" = "#984EA3",
     "RITA" = "#FF7F00",
     "Network" = "#A65628",
@@ -288,7 +290,7 @@ plot_mechanism_analysis <- function(D, G,
   )
 
   # Consistent ordering for all plots
-  strategy_order <- c("RITA", "RITA+Secondary", "Growth", "Size>=5", "Random", "Network")
+  strategy_order <- c("RITA", "RITA+Secondary", "Growth (k=5)", "Growth (k=2)", "Size>=5", "Random", "Network")
   
   # Parameters - matching those used in intervention0.R analysis
   # (distance thresholds and contact/degree parameters come from function parameters)
@@ -512,7 +514,7 @@ plot_mechanism_analysis <- function(D, G,
     }
     
     # =====================================================================
-    # Growth cluster strategy
+    # Growth cluster strategy (both k=5 and k=2)
     # =====================================================================
     D1_filtered <- D1[D1$distance <= distance_threshold_growth, ]
     keeppids <- "0"
@@ -521,138 +523,140 @@ plot_mechanism_analysis <- function(D, G,
       keeppids <- union(addpids, keeppids)
       addpids <- setdiff(D1_filtered$recipient[D1_filtered$donor %in% keeppids], keeppids)
     }
-    
+
     Gcluster <- G1[G1$pid %in% keeppids, ]
     Gtrig <- Gcluster[Gcluster$generation > 0 & Gcluster$generation != lastgen, ]
     Gtrig <- Gtrig[order(Gtrig$timesequenced), ]
-    
-    # Find growth trigger
+
+    # Run growth trigger for both cluster sizes
     t <- Gtrig$timesequenced
     n <- length(t)
-    if (n >= 5) {
-      j <- 1
-      trigger_i <- NA
-      window_start_j <- NA
-      
-      for (ii in 1:n) {
-        while (j <= ii && (t[ii] - t[j]) > lookback_days) {
-          j <- j + 1
-        }
-        if ((ii - j + 1) >= 5) {
-          trigger_i <- ii
-          window_start_j <- j
-          break
-        }
-      }
-      
-      if (!is.na(trigger_i)) {
-        window_start_time <- t[window_start_j]
-        IT <- t[trigger_i] + analysis_delay + implementation_delay
-        knowledge_cutoff <- IT - analysis_delay
-        
-        # Get cluster members (matching code logic)
-        cluster_at_IT <- Gcluster[Gcluster$generation != lastgen & 
-                                  Gcluster$timesequenced >= window_start_time &
-                                  Gcluster$timesequenced < knowledge_cutoff, ]
-        
-        for (k in 1:nrow(cluster_at_IT)) {
-          person <- cluster_at_IT[k, ]
-          pid <- person$pid
-          time_dx <- person$timediagnosed
-          time_seq <- person$timesequenced
-          time_infected <- person$timeinfected
-          
-          # Use D1 for transmission info
-          # Exclude transmissions to recipients in the final generation
-          transmissions_from_pid <- D1[D1$donor == pid, ]
-          recipient_gens <- sapply(transmissions_from_pid$recipient, function(r) {
-            g <- G1$generation[G1$pid == r]
-            if (length(g) == 0) NA else g[1]
-          })
-          transmissions_from_pid <- transmissions_from_pid[!is.na(recipient_gens) & recipient_gens < lastgen, ]
-          
-          total_trans <- nrow(transmissions_from_pid)
-          pia <- sum(transmissions_from_pid$timetransmission > IT)
-          
-          # Check if this person is a donor (transmits to anyone not in final gen)
-          is_donor <- total_trans > 0
-          
-          # Check if this person's donor is still undiagnosed at IT
-          donor_undiagnosed <- FALSE
-          donor_row <- D1[D1$recipient == pid, ]
-          if (nrow(donor_row) > 0) {
-            donor_pid <- donor_row$donor[1]
-            donor_info <- G1[G1$pid == donor_pid, ]
-            if (nrow(donor_info) > 0) {
-              donor_undiagnosed <- donor_info$timediagnosed[1] > IT
-            }
+
+    for (growth_k in c(5, 2)) {
+      growth_label <- paste0("Growth (k=", growth_k, ")")
+
+      if (n >= growth_k) {
+        j <- 1
+        trigger_i <- NA
+        window_start_j <- NA
+
+        for (ii in 1:n) {
+          while (j <= ii && (t[ii] - t[j]) > lookback_days) {
+            j <- j + 1
           }
-          
-          donor_analysis <- rbind(donor_analysis, data.frame(
-            strategy = "Growth", is_donor = is_donor, pia = pia,
-            donor_undiagnosed = donor_undiagnosed
-          ))
-          
-          transmission_analysis <- rbind(transmission_analysis, data.frame(
-            strategy = "Growth", n_transmitted = total_trans
-          ))
-          
-          if (total_trans > 0) {
-            frac_remaining <- pia / total_trans
-            timing_analysis <- rbind(timing_analysis, data.frame(
-              strategy = "Growth",
-              time_since_infection = IT - time_infected,
-              frac_remaining = frac_remaining
-            ))
+          if ((ii - j + 1) >= growth_k) {
+            trigger_i <- ii
+            window_start_j <- j
+            break
           }
-          
-          # Delay components for growth cluster intervention
-          # Timeline: Infection → Diagnosis → Sequencing → [Wait for cluster] → Trigger → Analysis → Implementation → IT
-          # NOTE: Delays are calculated per cluster member (one row per component per member).
-          # For "Sequencing to Trigger", each member experiences a different delay:
-          #   - Member A (sequenced first) waits longest for cluster to accumulate
-          #   - Member E (sequenced 5th) waits shortest (triggers immediately)
-          # The mean across all individuals equals the mean of cluster-level means (when cluster sizes are similar).
-          # This captures the per-individual delay experience within clusters.
-          delay_results <- rbind(delay_results, data.frame(
-            component = c("Dx to Sequencing\n(sequencing delay)",
-                          "Sequencing to Trigger\n(per-individual accumulation)",
-                          "First Sequenced to Trigger\n(total cluster accumulation)",
-                          "Trigger to Analysis\n(analysis delay)",
-                          "Analysis to Intervention\n(implementation delay)"),
-            delay = c(
-              time_seq - time_dx,                    # Time from diagnosis to sequencing complete
-              t[trigger_i] - time_seq,              # Time waiting for 5th case in cluster (varies by member)
-              t[trigger_i] - t[window_start_j],     # Time from 1st sequenced to trigger (same for all in cluster)
-              analysis_delay,                        # Fixed 14-day analysis delay after trigger
-              implementation_delay                   # Fixed 14-day implementation delay after analysis
-            )
-          ))
         }
-        
-        # =====================================================================
-        # Survivorship bias analysis: offspring of growth cluster members
-        # =====================================================================
-        for (k in 1:nrow(cluster_at_IT)) {
-          member_pid <- cluster_at_IT$pid[k]
-          offspring_pids <- D1$recipient[D1$donor == member_pid]
-          for (offspring_pid in offspring_pids) {
-            offspring_info <- G1[G1$pid == offspring_pid, ]
-            if (nrow(offspring_info) == 0 || offspring_info$generation >= lastgen) next
-            
-            # Count transmissions from this offspring
-            trans_from_offspring <- D1[D1$donor == offspring_pid, ]
-            recipient_gens <- sapply(trans_from_offspring$recipient, function(r) {
+
+        if (!is.na(trigger_i)) {
+          window_start_time <- t[window_start_j]
+          IT <- t[trigger_i] + analysis_delay + implementation_delay
+          knowledge_cutoff <- IT - analysis_delay
+
+          # Get cluster members (matching code logic)
+          cluster_at_IT <- Gcluster[Gcluster$generation != lastgen &
+                                    Gcluster$timesequenced >= window_start_time &
+                                    Gcluster$timesequenced < knowledge_cutoff, ]
+
+          for (k in 1:nrow(cluster_at_IT)) {
+            person <- cluster_at_IT[k, ]
+            pid <- person$pid
+            time_dx <- person$timediagnosed
+            time_seq <- person$timesequenced
+            time_infected <- person$timeinfected
+
+            # Use D1 for transmission info
+            # Exclude transmissions to recipients in the final generation
+            transmissions_from_pid <- D1[D1$donor == pid, ]
+            recipient_gens <- sapply(transmissions_from_pid$recipient, function(r) {
               g <- G1$generation[G1$pid == r]
               if (length(g) == 0) NA else g[1]
             })
-            trans_from_offspring <- trans_from_offspring[!is.na(recipient_gens) & recipient_gens < lastgen, ]
-            
-            survivorship_results <- rbind(survivorship_results, data.frame(
-              group = "Growth cluster offspring",
-              generation = offspring_info$generation[1],
-              n_transmitted = nrow(trans_from_offspring)
+            transmissions_from_pid <- transmissions_from_pid[!is.na(recipient_gens) & recipient_gens < lastgen, ]
+
+            total_trans <- nrow(transmissions_from_pid)
+            pia <- sum(transmissions_from_pid$timetransmission > IT)
+
+            # Check if this person is a donor (transmits to anyone not in final gen)
+            is_donor <- total_trans > 0
+
+            # Check if this person's donor is still undiagnosed at IT
+            donor_undiagnosed <- FALSE
+            donor_row <- D1[D1$recipient == pid, ]
+            if (nrow(donor_row) > 0) {
+              donor_pid <- donor_row$donor[1]
+              donor_info <- G1[G1$pid == donor_pid, ]
+              if (nrow(donor_info) > 0) {
+                donor_undiagnosed <- donor_info$timediagnosed[1] > IT
+              }
+            }
+
+            donor_analysis <- rbind(donor_analysis, data.frame(
+              strategy = growth_label, is_donor = is_donor, pia = pia,
+              donor_undiagnosed = donor_undiagnosed
             ))
+
+            transmission_analysis <- rbind(transmission_analysis, data.frame(
+              strategy = growth_label, n_transmitted = total_trans
+            ))
+
+            if (total_trans > 0) {
+              frac_remaining <- pia / total_trans
+              timing_analysis <- rbind(timing_analysis, data.frame(
+                strategy = growth_label,
+                time_since_infection = IT - time_infected,
+                frac_remaining = frac_remaining
+              ))
+            }
+
+            # Delay components (only for k=5 to avoid duplicate delay analysis)
+            if (growth_k == 5) {
+              delay_results <- rbind(delay_results, data.frame(
+                component = c("Dx to Sequencing\n(sequencing delay)",
+                              "Sequencing to Trigger\n(per-individual accumulation)",
+                              "First Sequenced to Trigger\n(total cluster accumulation)",
+                              "Trigger to Analysis\n(analysis delay)",
+                              "Analysis to Intervention\n(implementation delay)"),
+                delay = c(
+                  time_seq - time_dx,
+                  t[trigger_i] - time_seq,
+                  t[trigger_i] - t[window_start_j],
+                  analysis_delay,
+                  implementation_delay
+                )
+              ))
+            }
+          }
+
+          # =====================================================================
+          # Survivorship bias analysis: offspring of growth cluster members (k=5 only)
+          # =====================================================================
+          if (growth_k == 5) {
+            for (k in 1:nrow(cluster_at_IT)) {
+              member_pid <- cluster_at_IT$pid[k]
+              offspring_pids <- D1$recipient[D1$donor == member_pid]
+              for (offspring_pid in offspring_pids) {
+                offspring_info <- G1[G1$pid == offspring_pid, ]
+                if (nrow(offspring_info) == 0 || offspring_info$generation >= lastgen) next
+
+                # Count transmissions from this offspring
+                trans_from_offspring <- D1[D1$donor == offspring_pid, ]
+                recipient_gens <- sapply(trans_from_offspring$recipient, function(r) {
+                  g <- G1$generation[G1$pid == r]
+                  if (length(g) == 0) NA else g[1]
+                })
+                trans_from_offspring <- trans_from_offspring[!is.na(recipient_gens) & recipient_gens < lastgen, ]
+
+                survivorship_results <- rbind(survivorship_results, data.frame(
+                  group = "Growth cluster offspring",
+                  generation = offspring_info$generation[1],
+                  n_transmitted = nrow(trans_from_offspring)
+                ))
+              }
+            }
           }
         }
       }
@@ -1151,7 +1155,8 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
 
   # Define intervention order and labels
   intervention_name_map <- c(
-    "growth" = "Growth",
+    "growth5" = "Growth (k=5)",
+    "growth2" = "Growth (k=2)",
     "rita" = "RITA",
     "ritasecondary" = "RITA+Secondary",
     "distsize5" = "Size>=5",
@@ -1160,14 +1165,15 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
   )
 
   # Order for plotting
-  intervention_order <- c("rita", "ritasecondary", "growth", "distsize5", "network")
+  intervention_order <- c("rita", "ritasecondary", "growth5", "growth2", "distsize5", "network")
   intervention_labels <- intervention_name_map[intervention_order]
 
   # Colors (matching existing plots)
   intervention_colors <- c(
     "rita" = "#FF7F00",
     "ritasecondary" = "#F781BF",
-    "growth" = "#4DAF4A",
+    "growth5" = "#4DAF4A",
+    "growth2" = "#66C266",
     "distsize5" = "#E41A1C",
     "network" = "#A65628"
   )

@@ -8,8 +8,8 @@ source("src/run_analysis.R")
 results <- load_cached_results()
 
 # Extract data (same as in plot function)
-strategy_names <- c("distsize5", "distsize2", "growth", "random", "rita", "network")
-strategy_labels <- c("Size>=5", "Size>=2", "Growth", "Random", "RITA", "Network")
+strategy_names <- c("distsize5", "distsize2", "growth5", "growth2", "random", "rita", "network")
+strategy_labels <- c("Size>=5", "Size>=2", "Growth (k=5)", "Growth (k=2)", "Random", "RITA", "Network")
 
 extract_data <- function(details) {
   dfs <- lapply(seq_along(strategy_names), function(i) {

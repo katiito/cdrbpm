@@ -89,7 +89,8 @@ load_cached_results <- function() {
   strategy_files <- list(
     distsize5 = find_most_recent("^details_distsize5_"),
     distsize2 = find_most_recent("^details_distsize2_"),
-    growth = find_most_recent("^details_growth_"),
+    growth5 = find_most_recent("^details_growth5_"),
+    growth2 = find_most_recent("^details_growth2_"),
     random = find_most_recent("^details_random_"),
     rita = find_most_recent("^details_rita_"),
     network = find_most_recent("^details_network_"),
