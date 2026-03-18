@@ -1229,6 +1229,181 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
 
 
 # =============================================================================
+# plot_grant_comparison
+# =============================================================================
+#' Point-and-interval comparison of RITA vs Growth strategies
+#'
+#' Creates a clean figure showing mean and 95% CI for percent improvement
+#' over random baseline, for RITA, Growth (k=2), and Growth (k=5) only.
+#'
+#' @param results The output from run_interventions() or load_cached_results().
+#'   Can also be a list of multiple results objects to merge across seeds.
+#' @param save_dir Directory to save plot (default "intervention-plots")
+#' @return The ggplot object (invisibly)
+#'
+plot_grant_comparison <- function(results, save_dir = NULL) {
+  require(dplyr)
+  require(ggplot2)
+  require(tidyr)
+
+  if (is.null(save_dir)) {
+    save_dir <- here::here("intervention-plots")
+  }
+  if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
+
+  # --- Support merging multiple results objects ---
+  # If results is a list of results objects (each with $details), combine them
+  if (!is.null(results$details)) {
+    results_sets <- list(results)
+  } else {
+    # Assume it's a list of results objects
+    results_sets <- results
+  }
+
+  all_paired <- list()
+
+  for (run_idx in seq_along(results_sets)) {
+    res <- results_sets[[run_idx]]
+
+    results_list <- list()
+    for (strategy_name in names(res$details)) {
+      data <- res$details[[strategy_name]]$o
+      ida_col <- if ("puta" %in% names(data)) "puta" else "ida"
+      contacts_col_large <- if ("contacts_large" %in% names(data)) "contacts_large" else "contacts"
+
+      data_with_efficiency <- data %>%
+        filter(.data[[contacts_col_large]] > 0) %>%
+        mutate(
+          intervention = strategy_name,
+          ida_per_contact = .data[[ida_col]] / .data[[contacts_col_large]],
+          pia_per_contact = pia / .data[[contacts_col_large]]
+        ) %>%
+        select(simid, intervention, ida_per_contact, pia_per_contact)
+
+      results_list[[strategy_name]] <- data_with_efficiency
+    }
+
+    results_large <- bind_rows(results_list)
+
+    results_by_sim <- results_large %>%
+      group_by(simid, intervention) %>%
+      summarise(
+        ida_per_contact = mean(ida_per_contact, na.rm = TRUE),
+        pia_per_contact = mean(pia_per_contact, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    random_results <- results_by_sim %>%
+      filter(intervention == "random") %>%
+      select(simid, ida_random = ida_per_contact, pia_random = pia_per_contact)
+
+    target_strategies <- c("rita", "growth2", "growth5")
+
+    paired_results_list <- list()
+    for (strat in target_strategies) {
+      strat_data <- results_by_sim %>%
+        filter(intervention == strat) %>%
+        select(simid, intervention, ida_per_contact, pia_per_contact)
+
+      paired <- inner_join(strat_data, random_results, by = "simid") %>%
+        mutate(
+          ida_pct_change = ifelse(ida_random > 0, (ida_per_contact - ida_random) / ida_random * 100, NA),
+          pia_pct_change = ifelse(pia_random > 0, (pia_per_contact - pia_random) / pia_random * 100, NA),
+          run = run_idx
+        )
+      paired_results_list[[strat]] <- paired
+    }
+
+    all_paired[[run_idx]] <- bind_rows(paired_results_list)
+  }
+
+  paired_results <- bind_rows(all_paired)
+  cat(sprintf("  Merged %d run(s): %d paired observations\n", length(results_sets), nrow(paired_results)))
+
+  # --- Build summary stats (mean + 95% CI) ---
+  plot_data_pct_ida <- paired_results %>%
+    select(simid, intervention, ida_pct_change) %>%
+    mutate(metric = "Infectious Days Averted per contact")
+
+  plot_data_pct_pia <- paired_results %>%
+    select(simid, intervention, pia_pct_change) %>%
+    rename(ida_pct_change = pia_pct_change) %>%
+    mutate(metric = "Possible Infections Averted per contact")
+
+  plot_data <- bind_rows(plot_data_pct_ida, plot_data_pct_pia) %>%
+    rename(value = ida_pct_change)
+
+  name_map <- c("rita" = "Recent infections", "growth2" = "Cluster of size 2", "growth5" = "Cluster of size 5")
+  strategy_order <- c("rita", "growth2", "growth5")
+  strategy_colors <- c("rita" = "#FF7F00", "growth2" = "#66C266", "growth5" = "#4DAF4A")
+
+  summary_df <- plot_data %>%
+    filter(intervention %in% strategy_order, !is.na(value)) %>%
+    mutate(
+      intervention = factor(intervention, levels = strategy_order),
+      label = name_map[as.character(intervention)]
+    ) %>%
+    group_by(label, metric, intervention) %>%
+    summarise(
+      mean_val = mean(value),
+      lo = quantile(value, 0.025),
+      hi = quantile(value, 0.975),
+      n = n(),
+      .groups = "drop"
+    )
+
+  summary_df$label <- factor(summary_df$label, levels = name_map[strategy_order])
+
+  # Only keep IDA metric
+  summary_df <- summary_df %>%
+    filter(metric == "Infectious Days Averted per contact")
+
+  # Build violin data from the individual observations
+  violin_data <- plot_data %>%
+    filter(intervention %in% strategy_order, !is.na(value),
+           metric == "Infectious Days Averted per contact") %>%
+    mutate(
+      intervention = factor(intervention, levels = strategy_order),
+      label = name_map[as.character(intervention)]
+    )
+  violin_data$label <- factor(violin_data$label, levels = name_map[strategy_order])
+
+  p <- ggplot(summary_df, aes(x = label, y = mean_val)) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", linewidth = 0.6) +
+    geom_violin(data = violin_data, aes(x = label, y = value),
+                fill = "grey80", color = NA, alpha = 0.6, scale = "width", width = 0.6) +
+    geom_pointrange(aes(ymin = lo, ymax = hi), size = 1.2, linewidth = 1.0, color = "black") +
+    scale_y_continuous(
+      trans = scales::pseudo_log_trans(base = 10),
+      breaks = c(-100, -10, 0, 10, 100, 1000, 10000),
+      labels = c("-100", "-10", "0", "10", "100", "1000", "10000"),
+      limits = c(-200, 10000)
+    ) +
+    labs(
+      title = "Model-predicted infectious days\naverted per contact",
+      x = "",
+      y = "% improvement over\nrandom prioritisation"
+    ) +
+    theme_minimal(base_size = 16) +
+    theme(
+      plot.title = element_text(face = "bold", size = 17),
+      axis.title.y = element_text(size = 15),
+      axis.text.x = element_text(size = 15),
+      axis.text.y = element_text(size = 13),
+      legend.position = "none",
+      panel.grid.major.x = element_blank(),
+      plot.margin = margin(5, 15, 5, 5)
+    )
+
+  grant_path <- file.path(save_dir, "grant_comparison.png")
+  ggsave(grant_path, p, width = 7, height = 5, dpi = 300)
+  cat(sprintf("  Saved: %s\n", grant_path))
+
+  invisible(p)
+}
+
+
+# =============================================================================
 # run_mechanism_analysis
 # =============================================================================
 #' Convenience function to run the full mechanism analysis
