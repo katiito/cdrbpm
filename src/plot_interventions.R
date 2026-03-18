@@ -1380,13 +1380,13 @@ plot_grant_comparison <- function(results, save_dir = NULL) {
       limits = c(-200, 10000)
     ) +
     labs(
-      title = "Model-predicted infectious days\naverted per contact",
+      title = "Model-predicted infectious days averted per contact",
       x = "",
       y = "% improvement over\nrandom prioritisation"
     ) +
     theme_minimal(base_size = 16) +
     theme(
-      plot.title = element_text(face = "bold", size = 17),
+      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
       axis.title.y = element_text(size = 15),
       axis.text.x = element_text(size = 15),
       axis.text.y = element_text(size = 13),
