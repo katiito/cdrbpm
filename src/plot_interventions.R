@@ -1333,7 +1333,9 @@ plot_grant_comparison <- function(results, save_dir = NULL) {
   plot_data <- bind_rows(plot_data_pct_ida, plot_data_pct_pia) %>%
     rename(value = ida_pct_change)
 
-  name_map <- c("rita" = "Recent infections", "growth2" = "Cluster of size 2", "growth5" = "Cluster of size 5")
+  name_map <- c("rita" = "Contact tracing of\nrecent infections only",
+                "growth2" = "2 diagnoses\nin cluster",
+                "growth5" = "5 diagnoses\nin cluster")
   strategy_order <- c("rita", "growth2", "growth5")
   strategy_colors <- c("rita" = "#FF7F00", "growth2" = "#66C266", "growth5" = "#4DAF4A")
 
@@ -1382,21 +1384,30 @@ plot_grant_comparison <- function(results, save_dir = NULL) {
     labs(
       title = "Model-predicted infectious days averted per contact",
       x = "",
-      y = "% improvement over\nrandom prioritisation"
+      y = "% improvement over contact\ntracing any new diagnosis"
     ) +
+    annotate("segment", x = 1.8, xend = 3.2, y = -130, yend = -130,
+             linewidth = 0.5, color = "grey30") +
+    annotate("segment", x = 1.8, xend = 1.8, y = -130, yend = -115,
+             linewidth = 0.5, color = "grey30") +
+    annotate("segment", x = 3.2, xend = 3.2, y = -130, yend = -115,
+             linewidth = 0.5, color = "grey30") +
+    annotate("text", x = 2.5, y = -175, label = "Outbreak investigation",
+             size = 4.5, color = "grey30") +
+    coord_cartesian(clip = "off") +
     theme_minimal(base_size = 16) +
     theme(
       plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
       axis.title.y = element_text(size = 15),
-      axis.text.x = element_text(size = 15),
+      axis.text.x = element_text(size = 13),
       axis.text.y = element_text(size = 13),
       legend.position = "none",
       panel.grid.major.x = element_blank(),
-      plot.margin = margin(5, 15, 5, 5)
+      plot.margin = margin(5, 15, 40, 5)
     )
 
   grant_path <- file.path(save_dir, "grant_comparison.png")
-  ggsave(grant_path, p, width = 7, height = 5, dpi = 300)
+  ggsave(grant_path, p, width = 8, height = 6, dpi = 300)
   cat(sprintf("  Saved: %s\n", grant_path))
 
   invisible(p)

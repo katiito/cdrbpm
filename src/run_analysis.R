@@ -147,6 +147,77 @@ load_cached_results <- function() {
   )
 }
 
+#' Load all cached results from today
+#'
+#' Finds all distinct runs from today's date and loads each one.
+#' Returns a list of results objects suitable for passing to
+#' plot_grant_comparison() to merge across seeds.
+#'
+#' @param date Date string in YYYYMMDD format (default: today)
+#' @param dir Directory containing cached results
+#' @return A list of results objects (one per run/timestamp)
+load_todays_cached_results <- function(date = format(Sys.Date(), "%Y%m%d"),
+                                        dir = here::here("intervention-results")) {
+  # Find all counts files for the given date to identify distinct timestamps
+  all_counts <- list.files(dir, pattern = paste0("^counts_", date, "_\\d{6}\\.csv$"),
+                           full.names = TRUE)
+  if (length(all_counts) == 0) {
+    stop(sprintf("No cached results found for date %s in %s", date, dir))
+  }
+
+  # Extract timestamps
+  timestamps <- regmatches(all_counts, regexpr("\\d{8}_\\d{6}", all_counts))
+  timestamps <- sort(unique(timestamps))
+  cat(sprintf("Found %d run(s) from %s\n", length(timestamps), date))
+
+  results_list <- list()
+
+  for (ts in timestamps) {
+    cat(sprintf("\n  Loading run %s...\n", ts))
+
+    counts_file <- file.path(dir, paste0("counts_", ts, ".csv"))
+    if (!file.exists(counts_file)) next
+
+    counts_df <- read.csv(counts_file)
+
+    # Load details
+    details <- list()
+    strategy_keys <- c("distsize5", "distsize2", "growth5", "growth2",
+                       "random", "rita", "network", "ritasecondary")
+
+    for (key in strategy_keys) {
+      file_path <- file.path(dir, paste0("details_", key, "_", ts, ".csv"))
+      if (file.exists(file_path)) {
+        df <- read.csv(file_path)
+        if ("contacts" %in% names(df) && !"contacts_small" %in% names(df)) {
+          df$contacts_small <- df$contacts
+          df$contacts_large <- df$contacts
+        }
+        details[[key]] <- list(o = df)
+        cat(sprintf("    %s: %d rows\n", key, nrow(df)))
+      }
+    }
+
+    # Load parameters
+    params_file <- file.path(dir, paste0("parameters_", ts, ".csv"))
+    parameters <- NULL
+    if (file.exists(params_file)) {
+      params_df <- read.csv(params_file)
+      parameters <- setNames(as.list(params_df$value), params_df$parameter)
+    }
+
+    results_list[[ts]] <- list(
+      counts = counts_df,
+      details = details,
+      parameters = parameters,
+      timestamp = ts
+    )
+  }
+
+  cat(sprintf("\nLoaded %d run(s) total\n", length(results_list)))
+  results_list
+}
+
 #' Generate plots from cached results
 #'
 #' @param results Optional: pre-loaded results. If NULL, loads from cache.
