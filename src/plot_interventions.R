@@ -1379,36 +1379,38 @@ plot_grant_comparison <- function(results, save_dir = NULL) {
       trans = scales::pseudo_log_trans(base = 10),
       breaks = c(-100, -10, 0, 10, 100, 1000, 10000),
       labels = c("-100", "-10", "0", "10", "100", "1000", "10000"),
-      limits = c(-200, 10000)
+      limits = c(-200, 70000)
     ) +
     labs(
-      title = "Model-predicted infectious days averted per contact",
       x = "",
       y = "% improvement over contact\ntracing any new diagnosis"
     ) +
-    annotate("segment", x = 1.8, xend = 3.2, y = -130, yend = -130,
+    annotate("text", x = 2.5, y = 65000, label = "Trigger criteria for outbreak investigation",
+             size = 6.75, color = "grey30") +
+    annotate("segment", x = 1.8, xend = 3.2, y = 38000, yend = 38000,
              linewidth = 0.5, color = "grey30") +
-    annotate("segment", x = 1.8, xend = 1.8, y = -130, yend = -115,
+    annotate("segment", x = 1.8, xend = 1.8, y = 38000, yend = 34000,
              linewidth = 0.5, color = "grey30") +
-    annotate("segment", x = 3.2, xend = 3.2, y = -130, yend = -115,
+    annotate("segment", x = 3.2, xend = 3.2, y = 38000, yend = 34000,
              linewidth = 0.5, color = "grey30") +
-    annotate("text", x = 2.5, y = -175, label = "Outbreak investigation",
-             size = 4.5, color = "grey30") +
     coord_cartesian(clip = "off") +
-    theme_minimal(base_size = 16) +
+    theme_minimal(base_size = 24) +
     theme(
-      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
-      axis.title.y = element_text(size = 15),
-      axis.text.x = element_text(size = 13),
-      axis.text.y = element_text(size = 13),
+      axis.title.y = element_text(size = 22),
+      axis.text.x = element_text(size = 19.5, vjust = 5),
+      axis.text.y = element_text(size = 19.5),
       legend.position = "none",
       panel.grid.major.x = element_blank(),
-      plot.margin = margin(5, 15, 40, 5)
+      plot.margin = margin(5, 15, 5, 5)
     )
 
   grant_path <- file.path(save_dir, "grant_comparison.png")
-  ggsave(grant_path, p, width = 8, height = 6, dpi = 300)
+  ggsave(grant_path, p, width = 800, height = 600, units = "mm", dpi = 300)
   cat(sprintf("  Saved: %s\n", grant_path))
+
+  grant_svg_path <- file.path(save_dir, "grant_comparison.svg")
+  ggsave(grant_svg_path, p, width = 800, height = 600, units = "mm")
+  cat(sprintf("  Saved: %s\n", grant_svg_path))
 
   invisible(p)
 }
