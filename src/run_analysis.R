@@ -240,13 +240,18 @@ generate_plots_from_cache <- function(results = NULL,
 
   plots <- list()
 
+  # Extract metadata for plot labels
+  ts        <- results$timestamp
+  n_sims    <- if (!is.null(results$details$random$o))
+                 length(unique(results$details$random$o$simid)) else NULL
+
   # -------------------------------------------------------------------------
   # Plot 1: Efficiency distributions (violin plot)
   # -------------------------------------------------------------------------
   cat("Generating efficiency distribution plot...\n")
-  p_violin <- plot_efficiency_distributions(results)
+  p_violin <- plot_efficiency_distributions(results, timestamp = ts, n_sims = n_sims)
   violin_path <- file.path(plot_dir, "efficiency_distributions.png")
-  ggsave(violin_path, p_violin, width = 14, height = 10, dpi = 300)
+  ggsave(violin_path, p_violin, width = 14, height = 10, dpi = 300, bg = "white")
   cat(sprintf("  Saved: %s\n", violin_path))
   plots$violin <- p_violin
 
@@ -255,7 +260,8 @@ generate_plots_from_cache <- function(results = NULL,
   # -------------------------------------------------------------------------
   if (run_paired) {
     cat("\nGenerating paired comparison plot...\n")
-    p_paired <- plot_paired_comparisons(results, save_dir = plot_dir)
+    p_paired <- plot_paired_comparisons(results, save_dir = plot_dir,
+                                        timestamp = ts, n_sims = n_sims)
     plots$paired_percent <- p_paired$percent
   }
 
@@ -290,7 +296,9 @@ generate_plots_from_cache <- function(results = NULL,
     p_mechanism <- run_mechanism_analysis(
       partner_notification_window_months = partner_notification_window_months,
       network_degree_threshold = network_degree_threshold,
-      n_sims = n_sims
+      n_sims = n_sims,
+      timestamp = ts,
+      n_sims_label = n_sims
     )
     plots$mechanism <- p_mechanism
   }

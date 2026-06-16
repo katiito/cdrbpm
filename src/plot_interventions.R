@@ -26,7 +26,9 @@
 #' @return A combined ggplot object with 4 panels
 #' 
 plot_efficiency_distributions <- function(results,
-                                          title_prefix = "") {
+                                          title_prefix = "",
+                                          timestamp = NULL,
+                                          n_sims = NULL) {
   require(ggplot2)
   require(patchwork)
 
@@ -241,8 +243,15 @@ plot_efficiency_distributions <- function(results,
     common_theme
 
   # Combine plots: 2x2 grid
+  caption_parts <- c(
+    if (!is.null(n_sims))   paste0("n = ", format(n_sims, big.mark = ","), " simulations"),
+    if (!is.null(timestamp)) paste0("Generated: ", timestamp)
+  )
   (p1 + p2) / (p3 + p4) +
-    plot_annotation(title = "Intervention Efficiency Distributions")
+    plot_annotation(
+      title   = "Intervention Efficiency Distributions",
+      caption = if (length(caption_parts) > 0) paste(caption_parts, collapse = " | ") else NULL
+    )
 }
 
 
@@ -1024,7 +1033,8 @@ plot_mechanism_analysis <- function(D, G,
 #' @param save_dir Directory to save plots (default "intervention-plots")
 #' @return A list containing the plot objects (distributions and percent)
 #'
-plot_paired_comparisons <- function(results, save_dir = NULL) {
+plot_paired_comparisons <- function(results, save_dir = NULL,
+                                    timestamp = NULL, n_sims = NULL) {
   require(dplyr)
   require(ggplot2)
   require(tidyr)
@@ -1196,9 +1206,14 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
       intervention_label = intervention_name_map[as.character(intervention)]
     )
 
+  subtitle_parts <- c(
+    "Large subnetwork | Matched simulations | Black diamond = mean",
+    if (!is.null(n_sims))    paste0("n = ", format(n_sims, big.mark = ","), " simulations"),
+    if (!is.null(timestamp)) paste0("Generated: ", timestamp)
+  )
+
   p_pct <- ggplot(plot_data_pct, aes(x = intervention_label, y = value, fill = intervention)) +
-    geom_violin(alpha = 0.7, trim = FALSE) +
-    geom_boxplot(width = 0.2, alpha = 0.5, outlier.alpha = 0.3) +
+    geom_boxplot(width = 0.5, alpha = 0.7, outlier.alpha = 0.3) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 1) +
     stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "black") +
     scale_fill_manual(values = intervention_colors) +
@@ -1206,7 +1221,7 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
     facet_wrap(~ metric, ncol = 1) +
     labs(
       title = "Paired Comparison: Percent Improvement Over Random Baseline",
-      subtitle = "Large subnetwork | Matched simulations | Black diamond = mean",
+      subtitle = paste(subtitle_parts, collapse = "\n"),
       x = "",
       y = "Percent improvement over random"
     ) +
@@ -1221,7 +1236,7 @@ plot_paired_comparisons <- function(results, save_dir = NULL) {
 
   # Save percent plot
   pct_path <- file.path(save_dir, "paired_comparison_percent.png")
-  ggsave(pct_path, p_pct, width = 10, height = 8, dpi = 300)
+  ggsave(pct_path, p_pct, width = 10, height = 8, dpi = 300, bg = "white")
   cat(sprintf("  Saved: %s\n", pct_path))
 
   return(list(percent = p_pct))
@@ -1438,7 +1453,9 @@ run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv"
                                    network_degree_threshold = 4,
                                    n_sims = 100,
                                    width = 12,
-                                   height = 12) {
+                                   height = 12,
+                                   timestamp = NULL,
+                                   n_sims_label = NULL) {
 
   cat("Loading data...\n")
   D <- read.csv(D_path)
@@ -1449,14 +1466,21 @@ run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv"
                                 partner_notification_window_months = partner_notification_window_months,
                                 network_degree_threshold = network_degree_threshold,
                                 n_sims = n_sims)
-  
+
+  caption_parts <- c(
+    if (!is.null(n_sims_label)) paste0("n = ", format(n_sims_label, big.mark = ","), " simulations"),
+    if (!is.null(timestamp))    paste0("Generated: ", timestamp)
+  )
+  if (length(caption_parts) > 0) {
+    p <- p + plot_annotation(caption = paste(caption_parts, collapse = " | "))
+  }
+
   if (!is.null(save_path)) {
-    # Ensure directory exists
     save_dir <- dirname(save_path)
     if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
     cat(sprintf("Saving figure to %s...\n", save_path))
-    ggsave(save_path, p, width = width, height = height, dpi = 300)
+    ggsave(save_path, p, width = width, height = height, dpi = 300, bg = "white")
   }
-  
+
   return(invisible(p))
 }
