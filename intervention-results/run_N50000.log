@@ -1,0 +1,11 @@
+here() starts at /Users/katiito/Library/CloudStorage/Dropbox/Work/HIV_clustermodelling/cdrbpm
+Using random seed: 1781600588 
+Loading data...
+  Note: G has 50000 simulations, D has 26828 (filtering G to match D)
+  Loaded 204229 D rows, 231057 G rows across 26828 simulations
+  Random sample size: 54525 ( 30 % of 181750 eligible)
+Running interventions (8 strategies)...
+  [1/8] Distance-size (size=5, D=0.005)... done (1955 units)
+  [2/8] Distance-size (size=2, D=0.005)... done (10281 units)
+  [3/8] Growth-rate (size=5, W=6mo, D=0.01)... done (98 units)
+  [4/8] Growth-rate (size=2, W=6mo, D=0.01)...

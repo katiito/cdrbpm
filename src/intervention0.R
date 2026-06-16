@@ -1306,22 +1306,22 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
 
+    # Pre-build lookup tables: O(N) once, O(degree) per individual instead of O(N)
+    donor_recip <- split(D$recipient, D$donor)
+    recip_donor <- split(D$donor, D$recipient)
+    pid_row     <- setNames(seq_len(nrow(G)), G$pid)
+
     # Set intervention time at diagnosis + implementation delay
     G1$IT <- G1$timediagnosed + implementation_delay_days
 
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, total_contacts) {
-      # Find all contacts: recipients (transmitted to), self, donors (transmitted from)
-      piapids <- D$recipient[ D$donor == pid] |>
-        union( c( pid, D$donor[D$recipient==pid] ))
-
-      G2 <- G[ G$pid %in% piapids , ]
+      piapids <- unique(c(pid, donor_recip[[pid]], recip_donor[[pid]]))
+      rows <- pid_row[piapids]; rows <- rows[!is.na(rows)]
+      G2 <- G[rows, ]
       pia <- sum( G2$timeinfected > IT )
-
       G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       ida <- sum( G3$timediagnosed - IT )
-
-      # Contacts = total_contacts + 1 (self)
       c( pia, ida, total_contacts + 1 )
     }
 
@@ -1420,20 +1420,22 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
 
+    # Pre-build lookup tables
+    donor_recip <- split(D$recipient, D$donor)
+    recip_donor <- split(D$donor, D$recipient)
+    pid_row     <- setNames(seq_len(nrow(G)), G$pid)
+
     # Set intervention time at diagnosis + implementation delay
     G1$IT <- G1$timediagnosed + implementation_delay_days
 
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, total_contacts) {
-      piapids <- D$recipient[D$donor == pid] |>
-        union(c(pid, D$donor[D$recipient == pid]))
-
-      G2 <- G[G$pid %in% piapids, ]
+      piapids <- unique(c(pid, donor_recip[[pid]], recip_donor[[pid]]))
+      rows <- pid_row[piapids]; rows <- rows[!is.na(rows)]
+      G2 <- G[rows, ]
       pia <- sum(G2$timeinfected > IT)
-
       G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
       ida <- sum(G3$timediagnosed - IT)
-
       c(pia, ida, total_contacts + 1)
     }
 
@@ -1543,20 +1545,22 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
   # Apply filter after pid modification
   G1 <- G[G1_filter, ]
 
+  # Pre-build lookup tables
+  donor_recip <- split(D$recipient, D$donor)
+  recip_donor <- split(D$donor, D$recipient)
+  pid_row     <- setNames(seq_len(nrow(G)), G$pid)
+
   # Set intervention time at diagnosis + implementation delay
   G1$IT <- G1$timediagnosed + implementation_delay_days
 
   # Process individual intervention outcomes
   proc_indiv <- function(pid, IT, total_contacts) {
-    piapids <- D$recipient[D$donor == pid] |>
-      union(c(pid, D$donor[D$recipient == pid]))
-
-    G2 <- G[G$pid %in% piapids, ]
+    piapids <- unique(c(pid, donor_recip[[pid]], recip_donor[[pid]]))
+    rows <- pid_row[piapids]; rows <- rows[!is.na(rows)]
+    G2 <- G[rows, ]
     pia <- sum(G2$timeinfected > IT)
-
     G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
     ida <- sum(G3$timediagnosed - IT)
-
     c(pia, ida, total_contacts + 1)  # +1 for the index case
   }
 
@@ -1669,28 +1673,29 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     G$total_contacts <- with(G, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
   }
 
+  # Pre-build lookup tables
+  D_donor_idx <- split(seq_len(nrow(D)), D$donor)      # donor pid -> row indices in D
+  D_recip_idx <- split(seq_len(nrow(D)), D$recipient)  # recipient pid -> row indices in D
+  donor_recip <- split(D$recipient, D$donor)            # for piapids expansion
+  recip_donor <- split(D$donor, D$recipient)
+  pid_row     <- setNames(seq_len(nrow(G)), G$pid)      # pid -> row index in G
+
   # Set intervention time
   G_rita$IT <- G_rita$timediagnosed + analysis_delay_days + implementation_delay_days
 
   # Helper function: Get transmission-linked individuals within lookback window
-  # NOTE: This identifies individuals via transmission tree, NOT their contacts
-  # Contacts are unknown - we only know contact COUNTS per person
   get_transmission_linked_individuals <- function(pid, window_start, window_end) {
-    # People this person transmitted TO within window
-    # (These are a subset of this person's contacts)
-    forward <- D$recipient[
-      D$donor == pid &
-      D$timetransmission >= window_start &
-      D$timetransmission <= window_end
-    ]
+    fwd_idx <- D_donor_idx[[pid]]
+    forward <- if (!is.null(fwd_idx)) {
+      keep <- D$timetransmission[fwd_idx] >= window_start & D$timetransmission[fwd_idx] <= window_end
+      D$recipient[fwd_idx[keep]]
+    } else character(0)
 
-    # People this person was infected BY within window
-    # (These are a subset of people who had contact with this person)
-    backward <- D$donor[
-      D$recipient == pid &
-      D$timetransmission >= window_start &
-      D$timetransmission <= window_end
-    ]
+    bwd_idx <- D_recip_idx[[pid]]
+    backward <- if (!is.null(bwd_idx)) {
+      keep <- D$timetransmission[bwd_idx] >= window_start & D$timetransmission[bwd_idx] <= window_end
+      D$donor[bwd_idx[keep]]
+    } else character(0)
 
     unique(c(forward, backward))
   }
@@ -1723,7 +1728,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     primary_traced <- get_transmission_linked_individuals(index_pid, lookback_start, lookback_end)
 
     for (primary_pid in primary_traced) {
-      primary_info <- G[G$pid == primary_pid, ]
+      r <- pid_row[primary_pid]
+      primary_info <- if (!is.na(r)) G[r, , drop = FALSE] else G[0L, ]
       if (eligible_for_intervention(primary_info, IT)) {
         network <- c(network, primary_pid)
 
@@ -1731,10 +1737,9 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
         secondary_traced <- get_transmission_linked_individuals(primary_pid, lookback_start, lookback_end)
 
         for (secondary_pid in secondary_traced) {
-          # Skip if already in network
           if (secondary_pid %in% network) next
-
-          secondary_info <- G[G$pid == secondary_pid, ]
+          r2 <- pid_row[secondary_pid]
+          secondary_info <- if (!is.na(r2)) G[r2, , drop = FALSE] else G[0L, ]
           if (eligible_for_intervention(secondary_info, IT)) {
             network <- c(network, secondary_pid)
           }
@@ -1744,38 +1749,22 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
 
     network <- unique(network)
 
-    # Calculate total contacts to notify
-    # Each traced individual has their own (unknown) contact list
-    # We notify ALL contacts of ALL traced individuals
-    network_contacts <- numeric(length(network))
-    for (j in seq_along(network)) {
-      person <- G[G$pid == network[j], ]
-      if (nrow(person) > 0) {
-        # total_contacts = Fcontacts_XXd + Gcontacts_XXd + Hcontacts_XXd
-        network_contacts[j] <- person$total_contacts[1]
-      }
-    }
+    # Calculate total contacts to notify using pid_row lookup
+    network_rows <- pid_row[network]
+    network_rows <- network_rows[!is.na(network_rows)]
+    G_net <- G[network_rows, ]
+    network_contacts <- G_net$total_contacts
 
-    # Small network: sum all contacts (assume fully unique - no overlap)
-    # Total notifications = sum of all contact lists
     contacts_small <- sum(network_contacts)
-
-    # Large network: max contacts (assume fully overlapping/connected)
-    # Total unique contacts ≈ max individual contact list
     contacts_large <- max(network_contacts, 0)
 
-    # Calculate PIA and IDA for network
-    # PIA/IDA scope: network members + their transmission partners
-    # (Following cluster-based strategy pattern)
-    piapids <- network
-    for (pid in network) {
-      # Add all transmission partners of network members
-      # (These represent potential infections averted through network intervention)
-      piapids <- union(piapids, D$recipient[D$donor == pid])  # People they infected
-      piapids <- union(piapids, D$donor[D$recipient == pid])  # People who infected them
-    }
+    # Expand piapids to include transmission partners of network members
+    piapids <- unique(c(network,
+                        unlist(donor_recip[network], use.names = FALSE),
+                        unlist(recip_donor[network], use.names = FALSE)))
 
-    G2 <- G[G$pid %in% piapids, ]
+    rows2 <- pid_row[piapids]; rows2 <- rows2[!is.na(rows2)]
+    G2 <- G[rows2, ]
 
     # PIA: Infections that occurred AFTER intervention time
     pia <- sum(G2$timeinfected > IT)
