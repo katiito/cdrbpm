@@ -201,7 +201,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -222,7 +222,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -244,7 +244,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -266,7 +266,7 @@ run_intervention_analysis <- function(
       error = function(e) {
         cat(" ERROR:", e$message, "\n")
         list(propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -340,7 +340,7 @@ run_intervention_analysis <- function(
                            nc = numeric(0), sum_degrees = numeric(0), sum_excess = numeric(0),
                            contacts_small = numeric(0), contacts_large = numeric(0)),
              propintervened = 0, n_units = 0,
-             puta_small = c(0, 0, 0, 0, 0), puta_large = c(0, 0, 0, 0, 0),
+             ida_small = c(0, 0, 0, 0, 0), ida_large = c(0, 0, 0, 0, 0),
              pia_small = c(0, 0, 0, 0, 0), pia_large = c(0, 0, 0, 0, 0),
              total_contacts_small = 0, total_contacts_large = 0)
       }
@@ -917,8 +917,8 @@ distsize_intervention <- function(
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -960,12 +960,12 @@ distsize_intervention <- function(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     n_units = nrow(odf1),
-    puta_small = c(sum(odf1$ida),
+    ida_small = c(sum(odf1$ida),
          if (sum(odf1$contacts_small) > 0) sum(odf1$ida) / sum(odf1$contacts_small) else NA_real_,
          med_ida_small,
          q_ida_small[1],
          q_ida_small[2]),
-    puta_large = c(sum(odf1$ida),
+    ida_large = c(sum(odf1$ida),
          if (sum(odf1$contacts_large) > 0) sum(odf1$ida) / sum(odf1$contacts_large) else NA_real_,
          med_ida_large,
          q_ida_large[1],
@@ -1182,8 +1182,8 @@ growthrate_intervention <- function(
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -1224,12 +1224,12 @@ growthrate_intervention <- function(
     o = odf1,
     propintervened = sum(odf1$nc) / sum(Gall$generation > 0 & Gall$generation < lastgen),
     n_units = nrow(odf1),
-    puta_small = c(sum(odf1$ida),
+    ida_small = c(sum(odf1$ida),
          if (sum(odf1$contacts_small) > 0) sum(odf1$ida) / sum(odf1$contacts_small) else NA_real_,
          med_ida_small,
          q_ida_small[1],
          q_ida_small[2]),
-    puta_large = c(sum(odf1$ida),
+    ida_large = c(sum(odf1$ida),
          if (sum(odf1$contacts_large) > 0) sum(odf1$ida) / sum(odf1$contacts_large) else NA_real_,
          med_ida_large,
          q_ida_large[1],
@@ -1642,8 +1642,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
                      contacts_small = numeric(0), contacts_large = numeric(0)),
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -1804,8 +1804,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
       o = NULL,
       propintervened = 0,
       n_units = 0,
-      puta_small = c(0, 0, 0, 0, 0),
-      puta_large = c(0, 0, 0, 0, 0),
+      ida_small = c(0, 0, 0, 0, 0),
+      ida_large = c(0, 0, 0, 0, 0),
       pia_small = c(0, 0, 0, 0, 0),
       pia_large = c(0, 0, 0, 0, 0),
       total_contacts_small = 0,
@@ -1853,12 +1853,12 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     o = odf,
     propintervened = nrow(odf) / nrow(Gall[Gall$generation > 0 & Gall$generation < lastgeneration, ]),
     n_units = nrow(odf),
-    puta_small = c(sum(odf$ida),
+    ida_small = c(sum(odf$ida),
          if (sum(odf$contacts_small) > 0) sum(odf$ida) / sum(odf$contacts_small) else NA_real_,
          med_ida_small,
          q_ida_small[1],
          q_ida_small[2]),
-    puta_large = c(sum(odf$ida),
+    ida_large = c(sum(odf$ida),
          if (sum(odf$contacts_large) > 0) sum(odf$ida) / sum(odf$contacts_large) else NA_real_,
          med_ida_large,
          q_ida_large[1],
