@@ -182,6 +182,12 @@ run_intervention_analysis <- function(
     cat("  Random sample size:", random_sample_size, "(", round(100*random_coverage), "% of", eligible_pop, "eligible)\n")
 
     # -------------------------------------------------------------------------
+    # Pre-assign RITA status once so all strategies see the same test result
+    # per individual (avoids re-drawing rexp() independently in each strategy)
+    # -------------------------------------------------------------------------
+    Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1 / (rita_window_months * 30)))
+
+    # -------------------------------------------------------------------------
     # Run all six intervention strategies
     # -------------------------------------------------------------------------
     cat("Running interventions (8 strategies)...\n")
@@ -1388,11 +1394,8 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
 {
   lastgeneration <- max( Gall$generation )
   
-  # Simulate RITA test: positive if diagnosed within random window of infection
-  # Average window = rita_window_months * 30 days
-  Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rita_window_months*30)))
-  
   # Filter to RITA-positive cases in generations 2+ (excluding last)
+  # (Gall$rita is pre-assigned once in run_intervention_analysis)
   G1 <- Gall[Gall$rita & (Gall$generation > 0) & (Gall$generation < lastgeneration), ]
     
     if (nrow(G1) == 0) {
@@ -1639,10 +1642,8 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
   lastgeneration <- max(Gall$generation)
   lookback_days <- partner_notification_window_months * 30
 
-  # Simulate RITA test: positive if diagnosed within random window of infection
-  Gall$rita <- with(Gall, (timediagnosed - timeinfected) < rexp(nrow(Gall), 1/(rita_window_months*30)))
-
   # Filter to RITA-positive cases in generations 1+ (excluding last)
+  # (Gall$rita is pre-assigned once in run_intervention_analysis)
   G_rita <- Gall[Gall$rita & (Gall$generation > 0) & (Gall$generation < lastgeneration), ]
 
   if (nrow(G_rita) == 0) {
