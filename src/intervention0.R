@@ -462,14 +462,14 @@ run_intervention_analysis <- function(
     # -------------------------------------------------------------------------
     # Save outputs to files (if output_dir specified)
     # -------------------------------------------------------------------------
+    # Generate timestamp for unique filenames (needed for plots even when output_dir = NULL)
+    timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+
     if (!is.null(output_dir)) {
       if (!dir.exists(output_dir)) {
         dir.create(output_dir, recursive = TRUE)
         cat("Created output directory:", output_dir, "\n")
       }
-      
-      # Generate timestamp for unique filenames
-      timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
       
       # Save summary table (if it was successfully created)
       if (!is.null(odf1)) {
