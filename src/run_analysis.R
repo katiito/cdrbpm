@@ -245,12 +245,14 @@ generate_plots_from_cache <- function(results = NULL,
   n_sims    <- if (!is.null(results$details$random$o))
                  length(unique(results$details$random$o$simid)) else NULL
 
+  ts_suffix <- if (!is.null(ts) && nchar(ts) > 0) paste0("_", ts) else ""
+
   # -------------------------------------------------------------------------
   # Plot 1: Efficiency distributions (violin plot)
   # -------------------------------------------------------------------------
   cat("Generating efficiency distribution plot...\n")
-  p_violin <- plot_efficiency_distributions(results, timestamp = ts, n_sims = n_sims)
-  violin_path <- file.path(plot_dir, "efficiency_distributions.png")
+  p_violin <- plot_efficiency_distributions(results, n_sims = n_sims)
+  violin_path <- file.path(plot_dir, paste0("efficiency_distributions", ts_suffix, ".png"))
   ggsave(violin_path, p_violin, width = 14, height = 10, dpi = 300, bg = "white")
   cat(sprintf("  Saved: %s\n", violin_path))
   plots$violin <- p_violin
@@ -260,9 +262,17 @@ generate_plots_from_cache <- function(results = NULL,
   # -------------------------------------------------------------------------
   if (run_paired) {
     cat("\nGenerating paired comparison plot...\n")
-    p_paired <- plot_paired_comparisons(results, save_dir = plot_dir,
-                                        timestamp = ts, n_sims = n_sims)
+    p_paired <- plot_paired_comparisons(results, save_dir = NULL, n_sims = n_sims)
+    pct_path <- file.path(plot_dir, paste0("paired_comparison_percent", ts_suffix, ".png"))
+    ggsave(pct_path, p_paired$percent, width = 10, height = 8, dpi = 300, bg = "white")
+    cat(sprintf("  Saved: %s\n", pct_path))
     plots$paired_percent <- p_paired$percent
+
+    p_prob <- plot_prob_beats_random(p_paired$paired_results, n_sims = n_sims)
+    prob_path <- file.path(plot_dir, paste0("prob_beats_random", ts_suffix, ".png"))
+    ggsave(prob_path, p_prob, width = 8, height = 6, dpi = 300, bg = "white")
+    cat(sprintf("  Saved: %s\n", prob_path))
+    plots$prob_beats_random <- p_prob
   }
 
   # -------------------------------------------------------------------------
@@ -293,12 +303,13 @@ generate_plots_from_cache <- function(results = NULL,
       cat("  Warning: No parameter information found in results, using defaults\n")
     }
 
+    mechanism_path <- file.path(plot_dir, paste0("mechanism_analysis", ts_suffix, ".png"))
     p_mechanism <- run_mechanism_analysis(
       partner_notification_window_months = partner_notification_window_months,
       network_degree_threshold = network_degree_threshold,
       n_sims = n_sims,
-      timestamp = ts,
-      n_sims_label = n_sims
+      n_sims_label = n_sims,
+      save_path = mechanism_path
     )
     plots$mechanism <- p_mechanism
   }

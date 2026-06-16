@@ -243,14 +243,12 @@ plot_efficiency_distributions <- function(results,
     common_theme
 
   # Combine plots: 2x2 grid
-  caption_parts <- c(
-    if (!is.null(n_sims))   paste0("n = ", format(n_sims, big.mark = ","), " simulations"),
-    if (!is.null(timestamp)) paste0("Generated: ", timestamp)
-  )
+  subtitle_text <- if (!is.null(n_sims))
+    paste0("n = ", format(n_sims, big.mark = ","), " simulations") else NULL
   (p1 + p2) / (p3 + p4) +
     plot_annotation(
-      title   = "Intervention Efficiency Distributions",
-      caption = if (length(caption_parts) > 0) paste(caption_parts, collapse = " | ") else NULL
+      title    = "Intervention Efficiency Distributions",
+      subtitle = subtitle_text
     )
 }
 
@@ -1039,7 +1037,8 @@ plot_paired_comparisons <- function(results, save_dir = NULL,
   require(ggplot2)
   require(tidyr)
 
-  if (is.null(save_dir)) {
+  auto_save <- !is.null(save_dir)
+  if (!auto_save) {
     save_dir <- here::here("intervention-plots")
   }
   if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
@@ -1208,8 +1207,7 @@ plot_paired_comparisons <- function(results, save_dir = NULL,
 
   subtitle_parts <- c(
     "Large subnetwork | Matched simulations | Black diamond = mean",
-    if (!is.null(n_sims))    paste0("n = ", format(n_sims, big.mark = ","), " simulations"),
-    if (!is.null(timestamp)) paste0("Generated: ", timestamp)
+    if (!is.null(n_sims)) paste0("n = ", format(n_sims, big.mark = ","), " simulations")
   )
 
   p_pct <- ggplot(plot_data_pct, aes(x = intervention_label, y = value, fill = intervention)) +
@@ -1234,12 +1232,97 @@ plot_paired_comparisons <- function(results, save_dir = NULL,
       panel.grid.major.x = element_blank()
     )
 
-  # Save percent plot
-  pct_path <- file.path(save_dir, "paired_comparison_percent.png")
-  ggsave(pct_path, p_pct, width = 10, height = 8, dpi = 300, bg = "white")
-  cat(sprintf("  Saved: %s\n", pct_path))
+  if (auto_save) {
+    pct_path <- file.path(save_dir, "paired_comparison_percent.png")
+    ggsave(pct_path, p_pct, width = 10, height = 8, dpi = 300, bg = "white")
+    cat(sprintf("  Saved: %s\n", pct_path))
+  }
 
-  return(list(percent = p_pct))
+  return(list(percent = p_pct, paired_results = paired_results))
+}
+
+
+# =============================================================================
+# plot_prob_beats_random
+# =============================================================================
+#' Plot the probability each strategy beats random
+#'
+#' For each strategy, shows the proportion of matched simulations where the
+#' strategy outperforms random (IDA per contact > 0, PIA per contact > 0).
+#'
+#' @param paired_results Data frame returned by plot_paired_comparisons()$paired_results
+#' @param n_sims Optional number of simulations for subtitle
+#' @return A ggplot object
+plot_prob_beats_random <- function(paired_results, n_sims = NULL) {
+  require(ggplot2)
+  require(dplyr)
+
+  intervention_order <- c("rita", "ritasecondary", "growth5", "growth2", "distsize5", "network")
+  intervention_name_map <- c(
+    "growth5"       = "Growth (k=5)",
+    "growth2"       = "Growth (k=2)",
+    "rita"          = "RITA",
+    "ritasecondary" = "RITA+Secondary",
+    "distsize5"     = "Size>=5",
+    "distsize2"     = "Size>=2",
+    "network"       = "Network"
+  )
+  intervention_colors <- c(
+    "rita"          = "#FF7F00",
+    "ritasecondary" = "#F781BF",
+    "growth5"       = "#4DAF4A",
+    "growth2"       = "#66C266",
+    "distsize5"     = "#E41A1C",
+    "network"       = "#A65628"
+  )
+
+  prob_data <- paired_results %>%
+    filter(intervention %in% intervention_order) %>%
+    group_by(intervention) %>%
+    summarise(
+      prob_ida = mean(ida_pct_change > 0, na.rm = TRUE),
+      prob_pia = mean(pia_pct_change > 0, na.rm = TRUE),
+      n        = sum(!is.na(ida_pct_change)),
+      .groups  = "drop"
+    ) %>%
+    tidyr::pivot_longer(c(prob_ida, prob_pia),
+                        names_to  = "metric",
+                        values_to = "prob") %>%
+    mutate(
+      metric       = ifelse(metric == "prob_ida",
+                            "Infectious Days Averted", "Possible Infections Averted"),
+      intervention = factor(intervention, levels = intervention_order),
+      label        = intervention_name_map[as.character(intervention)]
+    )
+
+  subtitle_parts <- c(
+    "Proportion of matched simulations where strategy beats random",
+    if (!is.null(n_sims)) paste0("n = ", format(n_sims, big.mark = ","), " simulations")
+  )
+
+  ggplot(prob_data, aes(x = label, y = prob, colour = intervention, shape = metric)) +
+    geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey60") +
+    geom_point(size = 4, stroke = 1.2) +
+    scale_colour_manual(values = intervention_colors, guide = "none") +
+    scale_shape_manual(
+      values = c("Infectious Days Averted" = 16, "Possible Infections Averted" = 17),
+      name   = NULL
+    ) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                       limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
+    labs(
+      title    = "Probability of beating random allocation",
+      subtitle = paste(subtitle_parts, collapse = "\n"),
+      x        = "",
+      y        = "% simulations better than random"
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title    = element_text(face = "bold", size = 14),
+      axis.text.x   = element_text(angle = 35, hjust = 1),
+      legend.position = "bottom",
+      panel.grid.major.x = element_blank()
+    )
 }
 
 
@@ -1467,12 +1550,10 @@ run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv"
                                 network_degree_threshold = network_degree_threshold,
                                 n_sims = n_sims)
 
-  caption_parts <- c(
-    if (!is.null(n_sims_label)) paste0("n = ", format(n_sims_label, big.mark = ","), " simulations"),
-    if (!is.null(timestamp))    paste0("Generated: ", timestamp)
-  )
-  if (length(caption_parts) > 0) {
-    p <- p + plot_annotation(caption = paste(caption_parts, collapse = " | "))
+  if (!is.null(n_sims_label)) {
+    p <- p + plot_annotation(
+      subtitle = paste0("n = ", format(n_sims_label, big.mark = ","), " simulations")
+    )
   }
 
   if (!is.null(save_path)) {
