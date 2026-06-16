@@ -158,6 +158,7 @@ run_intervention_analysis <- function(
     }
 
     # Filter G to only include simulations present in D
+    n_simulations_total <- length(g_simids)
     if (length(g_simids) > length(d_simids)) {
       cat(sprintf("  Note: G has %d simulations, D has %d (filtering G to match D)\n",
                   length(g_simids), length(d_simids)))
@@ -565,11 +566,13 @@ run_intervention_analysis <- function(
         parameter = c("d_file", "g_file", "seed", "cluster_size_5", "cluster_size_2",
                       "distance_threshold", "network_degree_threshold",
                       "random_sample_size", "rita_window_months", "lookback_window_months",
-                      "growth_distance_threshold", "analysis_delay_days", "implementation_delay_days", "n_simulations"),
+                      "growth_distance_threshold", "analysis_delay_days", "implementation_delay_days",
+                      "n_simulations", "n_simulations_total"),
         value = c(d_file, g_file, as.character(seed), cluster_size_5, cluster_size_2,
                   distance_threshold, network_degree_threshold,
                   random_sample_size, rita_window_months, lookback_window_months,
-                  growth_distance_threshold, analysis_delay_days, implementation_delay_days, length(simids))
+                  growth_distance_threshold, analysis_delay_days, implementation_delay_days,
+                  length(simids), n_simulations_total)
       )
       write.csv(params, file.path(output_dir, paste0("parameters_", timestamp, ".csv")), row.names = FALSE)
       

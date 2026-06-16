@@ -241,9 +241,11 @@ generate_plots_from_cache <- function(results = NULL,
   plots <- list()
 
   # Extract metadata for plot labels
-  ts        <- results$timestamp
-  n_sims    <- if (!is.null(results$details$random$o))
-                 length(unique(results$details$random$o$simid)) else NULL
+  ts          <- results$timestamp
+  n_sims      <- if (!is.null(results$parameters$n_simulations))
+                   as.integer(results$parameters$n_simulations) else NULL
+  n_sims_total <- if (!is.null(results$parameters$n_simulations_total))
+                   as.integer(results$parameters$n_simulations_total) else NULL
 
   ts_suffix <- if (!is.null(ts) && nchar(ts) > 0) paste0("_", ts) else ""
 
@@ -251,7 +253,7 @@ generate_plots_from_cache <- function(results = NULL,
   # Plot 1: Efficiency distributions (violin plot)
   # -------------------------------------------------------------------------
   cat("Generating efficiency distribution plot...\n")
-  p_violin <- plot_efficiency_distributions(results, n_sims = n_sims)
+  p_violin <- plot_efficiency_distributions(results, n_sims = n_sims, n_sims_total = n_sims_total)
   violin_path <- file.path(plot_dir, paste0("efficiency_distributions", ts_suffix, ".png"))
   ggsave(violin_path, p_violin, width = 14, height = 10, dpi = 300, bg = "white")
   cat(sprintf("  Saved: %s\n", violin_path))
@@ -262,13 +264,13 @@ generate_plots_from_cache <- function(results = NULL,
   # -------------------------------------------------------------------------
   if (run_paired) {
     cat("\nGenerating paired comparison plot...\n")
-    p_paired <- plot_paired_comparisons(results, save_dir = NULL, n_sims = n_sims)
+    p_paired <- plot_paired_comparisons(results, save_dir = NULL, n_sims = n_sims, n_sims_total = n_sims_total)
     pct_path <- file.path(plot_dir, paste0("paired_comparison_percent", ts_suffix, ".png"))
     ggsave(pct_path, p_paired$percent, width = 10, height = 8, dpi = 300, bg = "white")
     cat(sprintf("  Saved: %s\n", pct_path))
     plots$paired_percent <- p_paired$percent
 
-    p_prob <- plot_prob_beats_random(p_paired$paired_results, n_sims = n_sims)
+    p_prob <- plot_prob_beats_random(p_paired$paired_results, n_sims = n_sims, n_sims_total = n_sims_total)
     prob_path <- file.path(plot_dir, paste0("prob_beats_random", ts_suffix, ".png"))
     ggsave(prob_path, p_prob, width = 8, height = 6, dpi = 300, bg = "white")
     cat(sprintf("  Saved: %s\n", prob_path))
@@ -308,7 +310,7 @@ generate_plots_from_cache <- function(results = NULL,
       partner_notification_window_months = partner_notification_window_months,
       network_degree_threshold = network_degree_threshold,
       n_sims = n_sims,
-      n_sims_label = n_sims,
+      n_sims_label = n_sims, n_sims_total = n_sims_total,
       save_path = mechanism_path
     )
     plots$mechanism <- p_mechanism

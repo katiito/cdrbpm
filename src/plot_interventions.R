@@ -11,6 +11,15 @@
 # =============================================================================
 
 
+# Helper: build a consistent "N = X total; n = Y with transmission" label
+sim_label <- function(n_sims = NULL, n_sims_total = NULL) {
+  parts <- c(
+    if (!is.null(n_sims_total)) paste0("N = ", format(n_sims_total, big.mark = ","), " simulations run"),
+    if (!is.null(n_sims))       paste0("n = ", format(n_sims,       big.mark = ","), " with transmission")
+  )
+  if (length(parts) == 0) NULL else paste(parts, collapse = "; ")
+}
+
 # =============================================================================
 # plot_efficiency_distributions
 # =============================================================================
@@ -28,7 +37,8 @@
 plot_efficiency_distributions <- function(results,
                                           title_prefix = "",
                                           timestamp = NULL,
-                                          n_sims = NULL) {
+                                          n_sims = NULL,
+                                          n_sims_total = NULL) {
   require(ggplot2)
   require(patchwork)
 
@@ -243,12 +253,10 @@ plot_efficiency_distributions <- function(results,
     common_theme
 
   # Combine plots: 2x2 grid
-  subtitle_text <- if (!is.null(n_sims))
-    paste0("n = ", format(n_sims, big.mark = ","), " simulations") else NULL
   (p1 + p2) / (p3 + p4) +
     plot_annotation(
       title    = "Intervention Efficiency Distributions",
-      subtitle = subtitle_text
+      subtitle = sim_label(n_sims, n_sims_total)
     )
 }
 
@@ -1032,7 +1040,8 @@ plot_mechanism_analysis <- function(D, G,
 #' @return A list containing the plot objects (distributions and percent)
 #'
 plot_paired_comparisons <- function(results, save_dir = NULL,
-                                    timestamp = NULL, n_sims = NULL) {
+                                    timestamp = NULL, n_sims = NULL,
+                                    n_sims_total = NULL) {
   require(dplyr)
   require(ggplot2)
   require(tidyr)
@@ -1207,7 +1216,7 @@ plot_paired_comparisons <- function(results, save_dir = NULL,
 
   subtitle_parts <- c(
     "Large subnetwork | Matched simulations | Black diamond = mean",
-    if (!is.null(n_sims)) paste0("n = ", format(n_sims, big.mark = ","), " simulations")
+    sim_label(n_sims, n_sims_total)
   )
 
   p_pct <- ggplot(plot_data_pct, aes(x = intervention_label, y = value, fill = intervention)) +
@@ -1253,7 +1262,7 @@ plot_paired_comparisons <- function(results, save_dir = NULL,
 #' @param paired_results Data frame returned by plot_paired_comparisons()$paired_results
 #' @param n_sims Optional number of simulations for subtitle
 #' @return A ggplot object
-plot_prob_beats_random <- function(paired_results, n_sims = NULL) {
+plot_prob_beats_random <- function(paired_results, n_sims = NULL, n_sims_total = NULL) {
   require(ggplot2)
   require(dplyr)
 
@@ -1297,7 +1306,7 @@ plot_prob_beats_random <- function(paired_results, n_sims = NULL) {
 
   subtitle_parts <- c(
     "Proportion of matched simulations where strategy beats random",
-    if (!is.null(n_sims)) paste0("n = ", format(n_sims, big.mark = ","), " simulations")
+    sim_label(n_sims, n_sims_total)
   )
 
   ggplot(prob_data, aes(x = label, y = prob, colour = intervention, shape = metric)) +
@@ -1538,7 +1547,8 @@ run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv"
                                    width = 12,
                                    height = 12,
                                    timestamp = NULL,
-                                   n_sims_label = NULL) {
+                                   n_sims_label = NULL,
+                                   n_sims_total = NULL) {
 
   cat("Loading data...\n")
   D <- read.csv(D_path)
@@ -1550,10 +1560,9 @@ run_mechanism_analysis <- function(D_path = "src/experiment1-N10000-gens7-D.csv"
                                 network_degree_threshold = network_degree_threshold,
                                 n_sims = n_sims)
 
-  if (!is.null(n_sims_label)) {
-    p <- p + plot_annotation(
-      subtitle = paste0("n = ", format(n_sims_label, big.mark = ","), " simulations")
-    )
+  lbl <- sim_label(n_sims_label, n_sims_total)
+  if (!is.null(lbl)) {
+    p <- p + plot_annotation(subtitle = lbl)
   }
 
   if (!is.null(save_path)) {
