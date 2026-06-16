@@ -1,0 +1,93 @@
+here() starts at /Users/katiito/Library/CloudStorage/Dropbox/Work/HIV_clustermodelling/cdrbpm
+
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   🧬  HIV Cluster Intervention Analysis Pipeline  🧬            ║
+║                                                                  ║
+║   Welcome! Ready to analyze intervention strategies.            ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Looking for cached results...
+  Found results from: 20260616_145432
+  Loaded: counts_20260616_145432.csv
+  Loaded: details_distsize5_20260616_145432.csv (1955 rows)
+  Loaded: details_distsize2_20260616_145432.csv (10281 rows)
+  Loaded: details_growth5_20260616_145432.csv (98 rows)
+  Loaded: details_growth2_20260616_145432.csv (5550 rows)
+  Loaded: details_random_20260616_145432.csv (54525 rows)
+  Loaded: details_rita_20260616_145432.csv (19189 rows)
+  Loaded: details_network_20260616_145432.csv (134461 rows)
+  Loaded: details_ritasecondary_20260616_145432.csv (18862 rows)
+  Loaded: parameters_20260616_145432.csv
+  Cache loaded successfully!
+
+Generating efficiency distribution plot...
+Loading required package: patchwork
+  Saved: /Users/katiito/Library/CloudStorage/Dropbox/Work/HIV_clustermodelling/cdrbpm/intervention-plots/efficiency_distributions.png
+
+Generating paired comparison plot...
+Loading required package: dplyr
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+Loading required package: tidyr
+  Calculating efficiency metrics...
+  Aggregating to simulation level...
+  Saved: /Users/katiito/Library/CloudStorage/Dropbox/Work/HIV_clustermodelling/cdrbpm/intervention-results/paired_comparison_results.csv
+
+  === PAIRED COMPARISON SUMMARY (vs Random Baseline) ===
+  Mean differences (positive = strategy better than random):
+# A tibble: 7 x 4
+  intervention      n mean_ida_diff mean_pia_diff
+  <chr>         <int>         <dbl>         <dbl>
+1 distsize2      8691         -71.5      -0.00181
+2 distsize5      1895        -108.       -0.00665
+3 growth2        5257         -44.2      -0.00106
+4 growth5          97         -98.4      -0.00392
+5 network       17216         -71.8      -0.00138
+6 rita           9533          79.5       0.0100 
+7 ritasecondary  9224          60.4       0.0506 
+
+  Creating paired comparison plots...
+  Saved: /Users/katiito/Library/CloudStorage/Dropbox/Work/HIV_clustermodelling/cdrbpm/intervention-plots/paired_comparison_percent.png
+
+Generating mechanism analysis plot...
+  Using all simulations (this may take a few minutes)...
+  Using parameters from intervention analysis: partner_notification_window_months=6, network_degree_threshold=4
+Loading data...
+Generating mechanism analysis plots...
+Analyzing 10000 simulations...
+  Progress: 1000/10000 (10%)
+  Progress: 2000/10000 (20%)
+  Progress: 3000/10000 (30%)
+  Progress: 4000/10000 (40%)
+  Progress: 5000/10000 (50%)
+  Progress: 6000/10000 (60%)
+  Progress: 7000/10000 (70%)
+  Progress: 8000/10000 (80%)
+  Progress: 9000/10000 (90%)
+  Progress: 10000/10000 (100%)
+Creating plots...
+Saving figure to intervention-plots/mechanism_analysis.png...
+
+All plots saved to: intervention-plots/
+Warning messages:
+1: package 'patchwork' was built under R version 4.3.3 
+2: Removed 1773 rows containing non-finite values (`stat_ydensity()`). 
+3: Removed 1773 rows containing non-finite values (`stat_summary()`). 
+4: Removed 1773 rows containing non-finite values (`stat_summary()`). 
+5: Removed 2276 rows containing non-finite values (`stat_ydensity()`). 
+6: Removed 2276 rows containing non-finite values (`stat_summary()`). 
+7: Removed 2276 rows containing non-finite values (`stat_summary()`). 
+8: Removed 42432 rows containing non-finite values (`stat_ydensity()`). 
+9: Removed 42432 rows containing non-finite values (`stat_boxplot()`). 
+10: Removed 42432 rows containing non-finite values (`stat_summary()`). 

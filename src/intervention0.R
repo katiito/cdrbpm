@@ -1306,10 +1306,13 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
 
-    # Pre-build lookup tables: O(N) once, O(degree) per individual instead of O(N)
+    # Pre-build lookup tables — all O(1) per query after construction
     donor_recip <- split(D$recipient, D$donor)
     recip_donor <- split(D$donor, D$recipient)
-    pid_row     <- setNames(seq_len(nrow(G)), G$pid)
+    pid_env     <- list2env(setNames(as.list(seq_len(nrow(G))), G$pid),
+                            hash = TRUE, parent = emptyenv())
+    G_tinf <- G$timeinfected
+    G_tdx  <- G$timediagnosed
 
     # Set intervention time at diagnosis + implementation delay
     G1$IT <- G1$timediagnosed + implementation_delay_days
@@ -1317,11 +1320,10 @@ random_intervention <- function(Dall, Gall, random_sample_size, implementation_d
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, total_contacts) {
       piapids <- unique(c(pid, donor_recip[[pid]], recip_donor[[pid]]))
-      rows <- pid_row[piapids]; rows <- rows[!is.na(rows)]
-      G2 <- G[rows, ]
-      pia <- sum( G2$timeinfected > IT )
-      G3 <- G2[ G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-      ida <- sum( G3$timediagnosed - IT )
+      rows <- unlist(mget(piapids, envir = pid_env, ifnotfound = list(NULL)), use.names = FALSE)
+      tis  <- G_tinf[rows]; tds <- G_tdx[rows]
+      pia  <- sum(tis > IT)
+      ida  <- sum(tds[tis <= IT & tds > IT] - IT)
       c( pia, ida, total_contacts + 1 )
     }
 
@@ -1420,10 +1422,13 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
     D$recipient <- paste(sep='.', D$recipient, D$simid )
     G <- Gall; G$pid <- paste(sep='.', G$pid, G$simid)
 
-    # Pre-build lookup tables
+    # Pre-build lookup tables — all O(1) per query after construction
     donor_recip <- split(D$recipient, D$donor)
     recip_donor <- split(D$donor, D$recipient)
-    pid_row     <- setNames(seq_len(nrow(G)), G$pid)
+    pid_env     <- list2env(setNames(as.list(seq_len(nrow(G))), G$pid),
+                            hash = TRUE, parent = emptyenv())
+    G_tinf <- G$timeinfected
+    G_tdx  <- G$timediagnosed
 
     # Set intervention time at diagnosis + implementation delay
     G1$IT <- G1$timediagnosed + implementation_delay_days
@@ -1431,11 +1436,10 @@ rita_intervention <- function(Dall, Gall, rita_window_months, implementation_del
     # Process individual intervention outcomes
     proc_indiv <- function(pid, IT, total_contacts) {
       piapids <- unique(c(pid, donor_recip[[pid]], recip_donor[[pid]]))
-      rows <- pid_row[piapids]; rows <- rows[!is.na(rows)]
-      G2 <- G[rows, ]
-      pia <- sum(G2$timeinfected > IT)
-      G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-      ida <- sum(G3$timediagnosed - IT)
+      rows <- unlist(mget(piapids, envir = pid_env, ifnotfound = list(NULL)), use.names = FALSE)
+      tis  <- G_tinf[rows]; tds <- G_tdx[rows]
+      pia  <- sum(tis > IT)
+      ida  <- sum(tds[tis <= IT & tds > IT] - IT)
       c(pia, ida, total_contacts + 1)
     }
 
@@ -1545,10 +1549,13 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
   # Apply filter after pid modification
   G1 <- G[G1_filter, ]
 
-  # Pre-build lookup tables
+  # Pre-build lookup tables — all O(1) per query after construction
   donor_recip <- split(D$recipient, D$donor)
   recip_donor <- split(D$donor, D$recipient)
-  pid_row     <- setNames(seq_len(nrow(G)), G$pid)
+  pid_env     <- list2env(setNames(as.list(seq_len(nrow(G))), G$pid),
+                          hash = TRUE, parent = emptyenv())
+  G_tinf <- G$timeinfected
+  G_tdx  <- G$timediagnosed
 
   # Set intervention time at diagnosis + implementation delay
   G1$IT <- G1$timediagnosed + implementation_delay_days
@@ -1556,12 +1563,11 @@ network_intervention <- function(Dall, Gall, network_degree_threshold, implement
   # Process individual intervention outcomes
   proc_indiv <- function(pid, IT, total_contacts) {
     piapids <- unique(c(pid, donor_recip[[pid]], recip_donor[[pid]]))
-    rows <- pid_row[piapids]; rows <- rows[!is.na(rows)]
-    G2 <- G[rows, ]
-    pia <- sum(G2$timeinfected > IT)
-    G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-    ida <- sum(G3$timediagnosed - IT)
-    c(pia, ida, total_contacts + 1)  # +1 for the index case
+    rows <- unlist(mget(piapids, envir = pid_env, ifnotfound = list(NULL)), use.names = FALSE)
+    tis  <- G_tinf[rows]; tds <- G_tdx[rows]
+    pia  <- sum(tis > IT)
+    ida  <- sum(tds[tis <= IT & tds > IT] - IT)
+    c(pia, ida, total_contacts + 1)
   }
 
   mapply(proc_indiv, G1$pid, G1$IT, G1$total_contacts) -> o
@@ -1673,12 +1679,17 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     G$total_contacts <- with(G, Fcontacts_180d + Gcontacts_180d + Hcontacts_180d)
   }
 
-  # Pre-build lookup tables
-  D_donor_idx <- split(seq_len(nrow(D)), D$donor)      # donor pid -> row indices in D
-  D_recip_idx <- split(seq_len(nrow(D)), D$recipient)  # recipient pid -> row indices in D
-  donor_recip <- split(D$recipient, D$donor)            # for piapids expansion
+  # Pre-build lookup tables — all O(1) per query after construction
+  D_donor_idx <- split(seq_len(nrow(D)), D$donor)
+  D_recip_idx <- split(seq_len(nrow(D)), D$recipient)
+  donor_recip <- split(D$recipient, D$donor)
   recip_donor <- split(D$donor, D$recipient)
-  pid_row     <- setNames(seq_len(nrow(G)), G$pid)      # pid -> row index in G
+  pid_env     <- list2env(setNames(as.list(seq_len(nrow(G))), G$pid),
+                          hash = TRUE, parent = emptyenv())
+  G_tinf <- G$timeinfected
+  G_tdx  <- G$timediagnosed
+  G_gen  <- G$generation
+  G_tcts <- G$total_contacts
 
   # Set intervention time
   G_rita$IT <- G_rita$timediagnosed + analysis_delay_days + implementation_delay_days
@@ -1701,11 +1712,10 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
   }
 
   # Helper function: Check if person is eligible for intervention at IT
-  eligible_for_intervention <- function(person_info, IT) {
-    if (nrow(person_info) == 0) return(FALSE)
-    person_info$generation[1] > 0 &&
-      person_info$generation[1] < lastgeneration &&
-      person_info$timediagnosed[1] > IT
+  eligible_for_intervention <- function(pid, IT) {
+    r <- pid_env[[pid]]
+    if (is.null(r)) return(FALSE)
+    G_gen[r] > 0 && G_gen[r] < lastgeneration && G_tdx[r] > IT
   }
 
   # Process each RITA-positive case
@@ -1728,9 +1738,7 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
     primary_traced <- get_transmission_linked_individuals(index_pid, lookback_start, lookback_end)
 
     for (primary_pid in primary_traced) {
-      r <- pid_row[primary_pid]
-      primary_info <- if (!is.na(r)) G[r, , drop = FALSE] else G[0L, ]
-      if (eligible_for_intervention(primary_info, IT)) {
+      if (eligible_for_intervention(primary_pid, IT)) {
         network <- c(network, primary_pid)
 
         # Step 2: Identify secondary traced individuals (transmission-linked to primary)
@@ -1738,9 +1746,7 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
 
         for (secondary_pid in secondary_traced) {
           if (secondary_pid %in% network) next
-          r2 <- pid_row[secondary_pid]
-          secondary_info <- if (!is.na(r2)) G[r2, , drop = FALSE] else G[0L, ]
-          if (eligible_for_intervention(secondary_info, IT)) {
+          if (eligible_for_intervention(secondary_pid, IT)) {
             network <- c(network, secondary_pid)
           }
         }
@@ -1749,12 +1755,9 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
 
     network <- unique(network)
 
-    # Calculate total contacts to notify using pid_row lookup
-    network_rows <- pid_row[network]
-    network_rows <- network_rows[!is.na(network_rows)]
-    G_net <- G[network_rows, ]
-    network_contacts <- G_net$total_contacts
-
+    # Contacts per network member via pid_env
+    net_rows <- unlist(mget(network, envir = pid_env, ifnotfound = list(NULL)), use.names = FALSE)
+    network_contacts <- G_tcts[net_rows]
     contacts_small <- sum(network_contacts)
     contacts_large <- max(network_contacts, 0)
 
@@ -1763,16 +1766,10 @@ rita_secondary_intervention <- function(Dall, Gall, rita_window_months,
                         unlist(donor_recip[network], use.names = FALSE),
                         unlist(recip_donor[network], use.names = FALSE)))
 
-    rows2 <- pid_row[piapids]; rows2 <- rows2[!is.na(rows2)]
-    G2 <- G[rows2, ]
-
-    # PIA: Infections that occurred AFTER intervention time
-    pia <- sum(G2$timeinfected > IT)
-
-    # IDA: Infectious days averted
-    # (People infected before IT but diagnosed after IT)
-    G3 <- G2[G2$timeinfected <= IT & G2$timediagnosed > IT, ]
-    ida <- sum(G3$timediagnosed - IT)
+    pia_rows <- unlist(mget(piapids, envir = pid_env, ifnotfound = list(NULL)), use.names = FALSE)
+    tis <- G_tinf[pia_rows]; tds <- G_tdx[pia_rows]
+    pia <- sum(tis > IT)
+    ida <- sum(tds[tis <= IT & tds > IT] - IT)
 
     results[[i]] <- data.frame(
       simid = as.character(G_rita_simid[i]),  # Add simid for paired comparison
