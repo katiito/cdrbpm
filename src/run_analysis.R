@@ -61,21 +61,24 @@ find_most_recent <- function(pattern, dir = here::here("intervention-results")) 
 }
 
 #' Load cached intervention results
-#' 
+#'
+#' @param timestamp Optional YYYYMMDD_HHMMSS string to load a specific run.
+#'   If NULL (default), loads the most recent run.
 #' @return List with results in the same format as run_intervention_analysis()
-#' @details Loads the most recent CSV files from intervention-results/
-load_cached_results <- function() {
+load_cached_results <- function(timestamp = NULL) {
   cat("Looking for cached results...\n")
-  
-  # Find most recent counts file to get the timestamp
-  counts_file <- find_most_recent("^counts_")
-  
-  if (is.null(counts_file)) {
-    stop("No cached results found. Run with use_cached = FALSE first.")
+  dir <- here::here("intervention-results")
+
+  if (!is.null(timestamp)) {
+    counts_file <- file.path(dir, paste0("counts_", timestamp, ".csv"))
+    if (!file.exists(counts_file))
+      stop("No cached results found for timestamp: ", timestamp)
+  } else {
+    counts_file <- find_most_recent("^counts_")
+    if (is.null(counts_file))
+      stop("No cached results found. Run with use_cached = FALSE first.")
+    timestamp <- regmatches(counts_file, regexpr("\\d{8}_\\d{6}", counts_file))
   }
-  
-  # Extract timestamp for display
-  timestamp <- regmatches(counts_file, regexpr("\\d{8}_\\d{6}", counts_file))
   cat(sprintf("  Found results from: %s\n", timestamp))
   
   # Load counts
@@ -84,19 +87,21 @@ load_cached_results <- function() {
   
   # Load details from individual strategy files
   details <- list()
-  
-  # Strategy files and their keys
+
+  find_ts <- function(prefix)
+    file.path(dir, paste0(prefix, timestamp, ".csv"))
+
   strategy_files <- list(
-    distsize5 = find_most_recent("^details_distsize5_"),
-    distsize2 = find_most_recent("^details_distsize2_"),
-    growth5 = find_most_recent("^details_growth5_"),
-    growth2 = find_most_recent("^details_growth2_"),
-    random = find_most_recent("^details_random_"),
-    rita = find_most_recent("^details_rita_"),
-    network = find_most_recent("^details_network_"),
-    ritasecondary = find_most_recent("^details_ritasecondary_")
+    distsize5     = find_ts("details_distsize5_"),
+    distsize2     = find_ts("details_distsize2_"),
+    growth5       = find_ts("details_growth5_"),
+    growth2       = find_ts("details_growth2_"),
+    random        = find_ts("details_random_"),
+    rita          = find_ts("details_rita_"),
+    network       = find_ts("details_network_"),
+    ritasecondary = find_ts("details_ritasecondary_")
   )
-  
+
   for (key in names(strategy_files)) {
     file <- strategy_files[[key]]
     if (!is.null(file) && file.exists(file)) {
@@ -115,7 +120,7 @@ load_cached_results <- function() {
   }
   
   # Load parameters if available
-  params_file <- find_most_recent("^parameters_")
+  params_file <- find_ts("parameters_")
   parameters <- NULL
   if (!is.null(params_file) && file.exists(params_file)) {
     params_df <- read.csv(params_file)
@@ -270,7 +275,7 @@ generate_plots_from_cache <- function(results = NULL,
     cat(sprintf("  Saved: %s\n", pct_path))
     plots$paired_percent <- p_paired$percent
 
-    p_prob <- plot_prob_beats_random(p_paired$paired_results, n_sims = n_sims, n_sims_total = n_sims_total)
+    p_prob <- plot_prob_beats_random(results, n_sims = n_sims, n_sims_total = n_sims_total)
     prob_path <- file.path(plot_dir, paste0("prob_beats_random", ts_suffix, ".png"))
     ggsave(prob_path, p_prob, width = 8, height = 6, dpi = 300, bg = "white")
     cat(sprintf("  Saved: %s\n", prob_path))

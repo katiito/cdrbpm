@@ -1254,15 +1254,21 @@ plot_paired_comparisons <- function(results, save_dir = NULL,
 # =============================================================================
 # plot_prob_beats_random
 # =============================================================================
-#' Plot the probability each strategy beats random
+#' Bootstrap probability that each strategy beats random allocation
 #'
-#' For each strategy, shows the proportion of matched simulations where the
-#' strategy outperforms random (IDA per contact > 0, PIA per contact > 0).
+#' For each strategy, restricts to simids present in BOTH the strategy and the
+#' random strategy (intersection only). Aggregates IDA and contacts by simid
+#' using sums (not per-unit ratios), then bootstraps over shared simids to
+#' estimate P(pooled strategy efficiency > pooled random efficiency).
 #'
-#' @param paired_results Data frame returned by plot_paired_comparisons()$paired_results
-#' @param n_sims Optional number of simulations for subtitle
+#' @param results Full results object from run_intervention_analysis() or
+#'   load_cached_results()
+#' @param n_sims Optional n with transmission for subtitle
+#' @param n_sims_total Optional total N run for subtitle
+#' @param n_bootstrap Number of bootstrap replicates (default 1000)
 #' @return A ggplot object
-plot_prob_beats_random <- function(paired_results, n_sims = NULL, n_sims_total = NULL) {
+plot_prob_beats_random <- function(results, n_sims = NULL, n_sims_total = NULL,
+                                    n_bootstrap = 1000) {
   require(ggplot2)
   require(dplyr)
 
@@ -1273,7 +1279,6 @@ plot_prob_beats_random <- function(paired_results, n_sims = NULL, n_sims_total =
     "rita"          = "RITA",
     "ritasecondary" = "RITA+Secondary",
     "distsize5"     = "Size>=5",
-    "distsize2"     = "Size>=2",
     "network"       = "Network"
   )
   intervention_colors <- c(
@@ -1285,31 +1290,102 @@ plot_prob_beats_random <- function(paired_results, n_sims = NULL, n_sims_total =
     "network"       = "#A65628"
   )
 
-  prob_data <- paired_results %>%
-    filter(intervention %in% intervention_order) %>%
-    group_by(intervention) %>%
+  # Aggregate random by simid: sum IDA, PIA, contacts
+  rand_raw <- results$details$random$o
+  random_by_sim <- rand_raw %>%
+    group_by(simid) %>%
     summarise(
-      prob_ida = mean(ida_pct_change > 0, na.rm = TRUE),
-      prob_pia = mean(pia_pct_change > 0, na.rm = TRUE),
-      n        = sum(!is.na(ida_pct_change)),
-      .groups  = "drop"
-    ) %>%
-    tidyr::pivot_longer(c(prob_ida, prob_pia),
-                        names_to  = "metric",
-                        values_to = "prob") %>%
+      ida_rand      = sum(ida,      na.rm = TRUE),
+      pia_rand      = sum(pia,      na.rm = TRUE),
+      contacts_rand = sum(contacts, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  prob_rows <- list()
+  frac_rows <- list()
+
+  for (s in intervention_order) {
+    d <- results$details[[s]]$o
+    if (is.null(d)) next
+
+    ida_col      <- if ("puta" %in% names(d)) "puta" else "ida"
+    contacts_col <- if ("contacts_large" %in% names(d)) "contacts_large" else "contacts"
+
+    strat_by_sim <- d %>%
+      group_by(simid) %>%
+      summarise(
+        ida_strat      = sum(.data[[ida_col]],      na.rm = TRUE),
+        pia_strat      = sum(pia,                   na.rm = TRUE),
+        contacts_strat = sum(.data[[contacts_col]], na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    # Intersection of simids present in both strategy and random
+    shared <- inner_join(strat_by_sim, random_by_sim, by = "simid")
+    n_shared <- nrow(shared)
+    if (n_shared == 0) next
+
+    cat(sprintf("  %-20s  shared simids: %d\n", s, n_shared))
+
+    # ---- Pooled bootstrap: resample shared simids, compare pooled efficiencies ----
+    boot_ida <- logical(n_bootstrap)
+    boot_pia <- logical(n_bootstrap)
+    for (b in seq_len(n_bootstrap)) {
+      idx <- sample(n_shared, replace = TRUE)
+      bs  <- shared[idx, ]
+      boot_ida[b] <- sum(bs$ida_strat) / sum(bs$contacts_strat) >
+                     sum(bs$ida_rand)  / sum(bs$contacts_rand)
+      boot_pia[b] <- sum(bs$pia_strat) / sum(bs$contacts_strat) >
+                     sum(bs$pia_rand)  / sum(bs$contacts_rand)
+    }
+
+    prob_rows[[s]] <- data.frame(
+      intervention = s,
+      metric       = c("Infectious Days Averted", "Possible Infections Averted"),
+      prob         = c(mean(boot_ida), mean(boot_pia)),
+      n_shared     = n_shared,
+      method       = "Pooled bootstrap\n(population level)"
+    )
+
+    # ---- Per-outbreak fraction: within each shared simid, who wins? ----
+    per_sim <- shared %>%
+      mutate(
+        eff_strat_ida = ifelse(contacts_strat > 0, ida_strat / contacts_strat, NA_real_),
+        eff_rand_ida  = ifelse(contacts_rand  > 0, ida_rand  / contacts_rand,  NA_real_),
+        eff_strat_pia = ifelse(contacts_strat > 0, pia_strat / contacts_strat, NA_real_),
+        eff_rand_pia  = ifelse(contacts_rand  > 0, pia_rand  / contacts_rand,  NA_real_),
+        wins_ida      = eff_strat_ida > eff_rand_ida,
+        wins_pia      = eff_strat_pia > eff_rand_pia
+      )
+
+    frac_rows[[s]] <- data.frame(
+      intervention = s,
+      metric       = c("Infectious Days Averted", "Possible Infections Averted"),
+      prob         = c(mean(per_sim$wins_ida, na.rm = TRUE),
+                       mean(per_sim$wins_pia, na.rm = TRUE)),
+      n_shared     = n_shared,
+      method       = "Per-outbreak fraction\n(outbreak level)"
+    )
+  }
+
+  method_levels <- c("Pooled bootstrap\n(population level)",
+                     "Per-outbreak fraction\n(outbreak level)")
+
+  all_data <- bind_rows(c(prob_rows, frac_rows)) %>%
     mutate(
-      metric       = ifelse(metric == "prob_ida",
-                            "Infectious Days Averted", "Possible Infections Averted"),
       intervention = factor(intervention, levels = intervention_order),
-      label        = intervention_name_map[as.character(intervention)]
+      label        = intervention_name_map[as.character(intervention)],
+      method       = factor(method, levels = method_levels)
     )
 
   subtitle_parts <- c(
-    "Proportion of matched simulations where strategy beats random",
+    paste0("Shared simids (intersection of strategy and random) | ",
+           n_bootstrap, " bootstrap replicates"),
     sim_label(n_sims, n_sims_total)
   )
 
-  ggplot(prob_data, aes(x = label, y = prob, colour = intervention, shape = metric)) +
+  ggplot(all_data, aes(x = label, y = prob, colour = intervention, shape = metric)) +
+    facet_wrap(~method, ncol = 1, scales = "free_y") +
     geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey60") +
     geom_point(size = 4, stroke = 1.2) +
     scale_colour_manual(values = intervention_colors, guide = "none") +
@@ -1323,14 +1399,15 @@ plot_prob_beats_random <- function(paired_results, n_sims = NULL, n_sims_total =
       title    = "Probability of beating random allocation",
       subtitle = paste(subtitle_parts, collapse = "\n"),
       x        = "",
-      y        = "% simulations better than random"
+      y        = "P(strategy > random)"
     ) +
     theme_minimal(base_size = 13) +
     theme(
-      plot.title    = element_text(face = "bold", size = 14),
-      axis.text.x   = element_text(angle = 35, hjust = 1),
-      legend.position = "bottom",
-      panel.grid.major.x = element_blank()
+      plot.title        = element_text(face = "bold", size = 14),
+      axis.text.x       = element_text(angle = 35, hjust = 1),
+      legend.position   = "bottom",
+      panel.grid.major.x = element_blank(),
+      strip.text        = element_text(face = "bold", size = 12)
     )
 }
 
