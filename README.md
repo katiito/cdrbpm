@@ -136,14 +136,42 @@ For each strategy, matches outbreaks to the random baseline by simulation ID and
 
 ### Probability of beating random (`plot_prob_beats_random`)
 
-Estimates the probability that a strategy beats random allocation, at two levels:
+Both calculations start from the same **matched** setup: for each strategy, keep only the
+simulations (`simid`) present in *both* that strategy and the random baseline (the "shared"
+outbreaks), and within each outbreak sum IDA, PIA, and contacts. Comparing on the shared set
+means the strategy and random are always judged on the *same* outbreaks — like for like — so a
+strategy is not rewarded or penalised for happening to act on easier or harder outbreaks than
+random did.
 
-- **Per outbreak** – the fraction of shared simulations in which the strategy's per-contact
-  efficiency exceeds random.
-- **Population level (pooled bootstrap)** – restricts to simulation IDs present in *both* the
-  strategy and random, pools IDA and contacts by summing across outbreaks, and bootstraps over
-  the shared simulation IDs (default 1,000 replicates) to estimate
-  `P(pooled strategy efficiency > pooled random efficiency)`.
+From there the figure reports the probability of beating random **two ways**, because "does the
+strategy beat random?" has two different meanings. Both are computed for IDA and for
+PIA (shown as different point shapes); the dashed line at 50% marks "no better than random".
+
+- **Per-outbreak fraction (outbreak level).** Within each shared outbreak, compare the
+  strategy's per-contact efficiency (IDA / contacts) against random's, and record who wins. The
+  reported number is the **fraction of outbreaks the strategy wins**. It answers: *"in a typical
+  single outbreak, how often is the strategy more efficient than random?"* Every outbreak counts
+  equally regardless of size, so the result reflects the experience within an individual cluster
+  and is not swayed by a handful of unusually large outbreaks.
+
+- **Pooled bootstrap (population level).** Add up IDA and contacts across *all* shared outbreaks
+  and form a single aggregate efficiency (`ΣIDA / Σcontacts`) for the strategy and for random —
+  the programme-wide efficiency a health system would actually experience running the strategy
+  across the whole population. A single pooled comparison yields only one win/lose, so to attach
+  uncertainty the shared outbreaks are **bootstrapped**: resampled with replacement (default
+  1,000 times), re-pooled each replicate, recording how often the strategy's aggregate efficiency
+  exceeds random's — i.e. `P(pooled strategy efficiency > pooled random efficiency)`. It answers:
+  *"at population/programme scale, and allowing for the fact that we observed only a finite number
+  of outbreaks, how robustly does the strategy deliver more IDA per contact overall?"* Here
+  outbreaks are effectively **size-weighted**, because large outbreaks contribute more IDA and
+  more contacts to the totals.
+
+**Why both matter.** The two can disagree, and the disagreement is informative. A strategy can
+win the *majority of individual outbreaks* (high per-outbreak fraction) yet lose at the
+*population level* if the few outbreaks it loses are the large ones that dominate the pooled
+totals — or the reverse. Read together, they tell you both whether a strategy is *reliably*
+better outbreak-by-outbreak, and whether it is better *in aggregate* once outbreak size and
+sampling uncertainty are accounted for.
 
 Saved as `prob_beats_random_<TS>.png`. Plot subtitles annotate the number of runs and the
 number of simulations with onward transmission.
