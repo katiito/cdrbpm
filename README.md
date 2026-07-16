@@ -175,10 +175,11 @@ The two reported outcomes were **relabelled**; the underlying calculations did n
 | **PIA** — potential infections averted | **PIA** — potential infections averted *(unchanged)* | Onward infections that occur after the intervention | `sum(timeinfected > IT)` over the connected population |
 
 `PUTA` was renamed to `IDA` because the old acronym is an offensive word in Spanish; the change
-is cosmetic — `IDA` and the old `PUTA` are the same quantity. A few lingering column names still
-carry the old label: the printed summary table and the saved `summary_<TS>.csv` use
-`Total_PUTA` / `Median_PUTA` / `Low_PUTA` / `High_PUTA` (which hold IDA values), whereas the
-per-strategy `details_<strategy>_<TS>.csv` files use the clean `ida` column.
+is cosmetic — `IDA` and the old `PUTA` are the same quantity. The rename is applied throughout
+the current code: the summary table and `summary_<TS>.csv` use `Total_IDA` / `Median_IDA` /
+`Low_IDA` / `High_IDA`, and the per-strategy `details_<strategy>_<TS>.csv` files use an `ida`
+column. Cached results saved before mid-2026 store these values in a `puta` column instead; the
+plotting code reads either name for backward compatibility.
 
 ---
 ## 1. Overall workflow

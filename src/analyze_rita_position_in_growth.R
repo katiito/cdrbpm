@@ -107,7 +107,7 @@ analyze_rita_positions <- function() {
     if (nrow(growth_row) == 0) next
 
     # Calculate IDA per contact
-    ida <- growth_row$puta
+    ida <- growth_row$ida  # IDA (formerly PUTA)
     ida_per_contact_small <- ida / growth_row$contacts_small
     ida_per_contact_large <- ida / growth_row$contacts_large
 

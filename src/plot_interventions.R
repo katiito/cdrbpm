@@ -63,13 +63,13 @@ plot_efficiency_distributions <- function(results,
       
       o <- details[[sname]]$o
       
-      # For individual-based interventions (network, random, rita), there's only one contacts column
-      # and they use "ida" instead of "puta"
+      # For individual-based interventions (network, random, rita), there's only one
+      # contacts column (duplicated into contacts_small/large below)
       if (sname %in% c("network", "random", "rita")) {
         if (!"contacts" %in% names(o)) return(NULL)
         data.frame(
           strategy = slabel,
-          puta = o$ida,
+          ida = o$ida,
           pia = o$pia,
           contacts_small = o$contacts,  # Use same contacts for both assumptions
           contacts_large = o$contacts
@@ -80,7 +80,7 @@ plot_efficiency_distributions <- function(results,
         if (!all(c("ida", "pia", "contacts_small", "contacts_large") %in% names(o))) return(NULL)
         data.frame(
           strategy = slabel,
-          puta = o$ida,
+          ida = o$ida,
           pia = o$pia,
           contacts_small = o$contacts_small,
           contacts_large = o$contacts_large
@@ -98,8 +98,8 @@ plot_efficiency_distributions <- function(results,
   }
   
   # Compute efficiencies
-  df$ida_eff_small <- df$puta / df$contacts_small
-  df$ida_eff_large <- df$puta / df$contacts_large
+  df$ida_eff_small <- df$ida / df$contacts_small
+  df$ida_eff_large <- df$ida / df$contacts_large
   df$pia_eff_small <- df$pia / df$contacts_small
   df$pia_eff_large <- df$pia / df$contacts_large
   
@@ -127,11 +127,11 @@ plot_efficiency_distributions <- function(results,
   # Scale factor adjusts the transition point - higher = more expansion near zero
   
   # IDA transformation (lower scale to show more detail at higher values)
-  puta_scale <- 0.5
-  puta_trans <- scales::trans_new(
-    name = "puta_pseudo_log",
-    transform = function(x) asinh(x * puta_scale) / puta_scale,
-    inverse = function(x) sinh(x * puta_scale) / puta_scale
+  ida_scale <- 0.5
+  ida_trans <- scales::trans_new(
+    name = "ida_pseudo_log",
+    transform = function(x) asinh(x * ida_scale) / ida_scale,
+    inverse = function(x) sinh(x * ida_scale) / ida_scale
   )
   
   # PIA transformation (higher scale to expand 0-1 range where most density is)
@@ -167,7 +167,7 @@ plot_efficiency_distributions <- function(results,
     stat_summary(fun = mean, geom = "point",
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
-      trans = puta_trans,
+      trans = ida_trans,
       breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000),
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
@@ -191,7 +191,7 @@ plot_efficiency_distributions <- function(results,
     stat_summary(fun = mean, geom = "point",
                  color = "white", size = 3, shape = 21, fill = "black", stroke = 1.5) +
     scale_y_continuous(
-      trans = puta_trans,
+      trans = ida_trans,
       breaks = c(0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000),
       labels = c("0", "0.5", "1", "2", "5", "10", "20", "50", "100", "200", "500", "1k", "2k", "5k")
     ) +
@@ -1059,13 +1059,14 @@ plot_paired_comparisons <- function(results, save_dir = NULL,
   for (strategy_name in names(results$details)) {
     data <- results$details[[strategy_name]]$o
 
-    # Handle different column names: cluster-based strategies use "puta", individual-based use "ida"
+    # Back-compat: IDA lives in an "ida" column in current runs, but legacy cached
+    # CSVs (pre-2026-06) stored the same values in a "puta" column.
     ida_col <- if ("puta" %in% names(data)) "puta" else "ida"
 
     # For individual-based strategies, contacts_large doesn't exist, just "contacts"
     contacts_col_large <- if ("contacts_large" %in% names(data)) "contacts_large" else "contacts"
 
-    # puta/ida = IDA (Infectious Days Averted), pia = PIA (Possible Infections Averted)
+    # ida = IDA (Infectious Days Averted), pia = PIA (Potential Infections Averted)
     # Filter out rows with 0 contacts (efficiency per contact is undefined)
     data_with_efficiency <- data %>%
       filter(.data[[contacts_col_large]] > 0) %>%
@@ -1308,7 +1309,7 @@ plot_prob_beats_random <- function(results, n_sims = NULL, n_sims_total = NULL,
     d <- results$details[[s]]$o
     if (is.null(d)) next
 
-    ida_col      <- if ("puta" %in% names(d)) "puta" else "ida"
+    ida_col      <- if ("puta" %in% names(d)) "puta" else "ida"  # back-compat: legacy "puta" column
     contacts_col <- if ("contacts_large" %in% names(d)) "contacts_large" else "contacts"
 
     strat_by_sim <- d %>%
@@ -1452,7 +1453,7 @@ plot_grant_comparison <- function(results, save_dir = NULL) {
     results_list <- list()
     for (strategy_name in names(res$details)) {
       data <- res$details[[strategy_name]]$o
-      ida_col <- if ("puta" %in% names(data)) "puta" else "ida"
+      ida_col <- if ("puta" %in% names(data)) "puta" else "ida"  # back-compat: legacy "puta" column
       contacts_col_large <- if ("contacts_large" %in% names(data)) "contacts_large" else "contacts"
 
       data_with_efficiency <- data %>%

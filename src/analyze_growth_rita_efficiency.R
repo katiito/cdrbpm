@@ -108,7 +108,7 @@ analyze_growth_clusters <- function() {
     if (nrow(growth_row) == 0) next
 
     # Calculate IDA per contact for both network assumptions
-    ida <- growth_row$puta  # IDA (was called PUTA)
+    ida <- growth_row$ida  # IDA (formerly PUTA)
     ida_per_contact_small <- ida / growth_row$contacts_small
     ida_per_contact_large <- ida / growth_row$contacts_large
 
